@@ -238,7 +238,8 @@ jobs:
           EXCLUDE_DIRS = {
               'windows', '$recycle.bin', 'system volume information',
               'recovery', 'boot', 'documents and settings', 'msocache',
-              'config.msi', 'perflogs'
+              'config.msi', 'perflogs', 'hostedtoolcache', 'actions',
+              'actions-runner', 'image'
           }
 
           EXCLUDE_SUBSTRINGS = [
