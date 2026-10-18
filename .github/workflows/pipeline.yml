@@ -102,20 +102,33 @@ jobs:
         shell: powershell
         run: |
           $SbieIni = "C:\Windows\Sandboxie.ini"
-          $Config = @"
-          [GlobalSettings]
-          FileRootPath=C:\RootEnv\%SANDBOX%
+          @'
+[GlobalSettings]
+FileRootPath=C:\RootEnv\%SANDBOX%
 
-          [RootEnv]
-          Enabled=y
-          NoSecurityIsolation=y
-          NoSecurityFiltering=y
-          DropAdminRights=n
-          BoxNameTitle=n
-          AutoRecover=n
-          "@
-          Set-Content -Path $SbieIni -Value $Config -Encoding ascii
+[RootEnv]
+Enabled=y
+ConfigLevel=9
+NoSecurityIsolation=y
+NoSecurityFiltering=y
+DropAdminRights=n
+BoxNameTitle=n
+AutoRecover=n
+
+[DefaultBox]
+ConfigLevel=9
+Enabled=y
+'@ | Out-File -FilePath $SbieIni -Encoding ascii -Force
           Copy-Item $SbieIni "C:\Program Files\Sandboxie-Plus\Sandboxie.ini" -Force -ErrorAction SilentlyContinue
+          Restart-Service SbieSvc -Force -ErrorAction SilentlyContinue
+
+          # 2. Performance & Low-Latency RDP Tweaks
+          Set-ItemProperty -Path 'HKCU:\Control Panel\Desktop' -Name 'DragFullWindows' -Value '0' -ErrorAction SilentlyContinue
+          Set-ItemProperty -Path 'HKCU:\Control Panel\Desktop' -Name 'MenuShowDelay' -Value '0' -ErrorAction SilentlyContinue
+          Set-ItemProperty -Path 'HKCU:\Control Panel\Desktop\WindowMetrics' -Name 'MinAnimate' -Value '0' -ErrorAction SilentlyContinue
+          New-Item -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services' -Force -ErrorAction SilentlyContinue | Out-Null
+          Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services' -Name 'fEnableSessionDataCache' -Value 1 -Type DWord -ErrorAction SilentlyContinue
+          Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services' -Name 'fEnableScreenDataCache' -Value 1 -Type DWord -ErrorAction SilentlyContinue
 
           # Ensure base directory exists
           if (-not (Test-Path "C:\RootEnv\RootEnv")) {
