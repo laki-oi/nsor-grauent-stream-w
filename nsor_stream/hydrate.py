@@ -1,6 +1,7 @@
 import os
 import sys
 import subprocess
+import shutil
 import tarfile
 
 try:
@@ -17,7 +18,7 @@ def main():
         print("[Hydrate] Notice: Missing HF credentials or encryption key. Initializing baseline layer.")
         return
 
-    os.environ['HF_HUB_ENABLE_HF_TRANSFER'] = '1'
+    os.environ['HF_XET_HIGH_PERFORMANCE'] = '1'
 
     from huggingface_hub import hf_hub_download
 
@@ -45,8 +46,13 @@ def main():
         return
 
     print("[Hydrate] Decrypting state layer (AES-256-CBC PBKDF2)...")
-    openssl = r"C:\Program Files\Git\usr\bin\openssl.exe"
-    if not os.path.exists(openssl):
+    openssl = shutil.which("openssl")
+    if not openssl:
+        for candidate in [r"C:\Program Files\OpenSSL\bin\openssl.exe", r"C:\Program Files\Git\usr\bin\openssl.exe", "openssl"]:
+            if os.path.exists(candidate):
+                openssl = candidate
+                break
+    if not openssl:
         openssl = "openssl"
 
     cmd = [

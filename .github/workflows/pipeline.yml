@@ -34,17 +34,19 @@ jobs:
           # 1. Multi-Threaded Asynchronous Debloat Engine (~105+ GB Reclamation)
           if (-not (Test-Path "C:\Temp")) { New-Item -ItemType Directory -Path "C:\Temp" -Force | Out-Null }
           
-          $DebloatBat = @"
-@echo off
-start /b "" cmd /c "rd /s /q C:\hostedtoolcache 2>nul & rd /s /q C:\Miniconda 2>nul & rd /s /q C:\msys64 2>nul & rd /s /q C:\Julia 2>nul & rd /s /q C:\ghcup 2>nul & rd /s /q C:\Strawberry 2>nul & rd /s /q C:\rtools45 2>nul & rd /s /q C:\vcpkg 2>nul & rd /s /q C:\actionarchivecache 2>nul & rd /s /q C:\tools 2>nul & rd /s /q C:\Packages 2>nul"
-start /b "" cmd /c "rd /s /q C:\Android 2>nul & rd /s /q %LOCALAPPDATA%\Android 2>nul & rd /s /q C:\mingw32 2>nul & rd /s /q C:\mingw64 2>nul & rd /s /q C:\Selenium 2>nul & rd /s /q C:\SeleniumWebDrivers 2>nul & rd /s /q C:\azureCli 2>nul & rd /s /q C:\azureDevOpsCli 2>nul"
-start /b "" cmd /c "rd /s /q \"C:\Program Files\Microsoft Visual Studio\" 2>nul & rd /s /q \"C:\Program Files (x86)\Microsoft Visual Studio\" 2>nul & rd /s /q \"C:\ProgramData\Package Cache\" 2>nul"
-start /b "" cmd /c "rd /s /q \"C:\Program Files\Azure Cosmos DB Emulator\" 2>nul & rd /s /q \"C:\Program Files\Unity Hub\" 2>nul & rd /s /q \"C:\Program Files\Amazon\" 2>nul & rd /s /q \"C:\Program Files\PostgreSQL\" 2>nul & rd /s /q \"C:\Program Files\LLVM\" 2>nul & rd /s /q \"C:\Program Files\R\" 2>nul & rd /s /q \"C:\Program Files\docker\" 2>nul"
-start /b "" cmd /c "rd /s /q \"C:\Program Files (x86)\Windows Kits\" 2>nul & rd /s /q \"C:\Program Files (x86)\Visual Studio\" 2>nul & rd /s /q \"C:\Program Files (x86)\Microsoft Visual Studio 14.0\" 2>nul & rd /s /q \"C:\Program Files\Microsoft Visual Studio 14.0\" 2>nul"
-start /b "" cmd /c "rd /s /q \"C:\Program Files\ImageMagick-7.1.2-Q16-HDRI\" 2>nul & rd /s /q \"C:\Program Files\mongosh\" 2>nul & rd /s /q \"C:\Program Files\CMake\" 2>nul & rd /s /q \"C:\Program Files (x86)\WiX Toolset v3.14\" 2>nul & rd /s /q \"C:\Program Files (x86)\sbt\" 2>nul & rd /s /q \"C:\Program Files (x86)\pipx\" 2>nul & rd /s /q \"C:\Program Files (x86)\Nuget\" 2>nul"
-start /b "" cmd /c "rd /s /q \"C:\Program Files\WSL\" 2>nul & rd /s /q C:\shells 2>nul & rd /s /q C:\npm 2>nul & rd /s /q C:\inetpub 2>nul & rd /s /q \"C:\Program Files (x86)\Inno Setup 6\" 2>nul & rd /s /q \"C:\Program Files (x86)\HTML Help Workshop\" 2>nul & rd /s /q \"C:\Program Files (x86)\Windows Application Driver\" 2>nul & rd /s /q \"C:\Program Files (x86)\Microsoft Analysis Services\" 2>nul & rd /s /q \"C:\Program Files (x86)\Workflow Manager Tools\" 2>nul"
-"@
-          Set-Content -Path "C:\Temp\fast_debloat.bat" -Value $DebloatBat -Encoding ascii
+          # Preserve Python in hostedtoolcache while purging heavy toolchains
+          $DebloatLines = @(
+            '@echo off',
+            'start /b "" cmd /c "rd /s /q C:\hostedtoolcache\windows\Ruby 2>nul & rd /s /q C:\hostedtoolcache\windows\go 2>nul & rd /s /q C:\hostedtoolcache\windows\Java_Temurin-Hotspot_jdk 2>nul & rd /s /q C:\hostedtoolcache\windows\CodeQL 2>nul & rd /s /q C:\hostedtoolcache\windows\PyPy 2>nul & rd /s /q C:\hostedtoolcache\windows\node 2>nul"',
+            'start /b "" cmd /c "rd /s /q C:\Miniconda 2>nul & rd /s /q C:\msys64 2>nul & rd /s /q C:\Julia 2>nul & rd /s /q C:\ghcup 2>nul & rd /s /q C:\Strawberry 2>nul & rd /s /q C:\rtools45 2>nul & rd /s /q C:\vcpkg 2>nul & rd /s /q C:\actionarchivecache 2>nul & rd /s /q C:\tools 2>nul & rd /s /q C:\Packages 2>nul"',
+            'start /b "" cmd /c "rd /s /q C:\Android 2>nul & rd /s /q %LOCALAPPDATA%\Android 2>nul & rd /s /q C:\mingw32 2>nul & rd /s /q C:\mingw64 2>nul & rd /s /q C:\Selenium 2>nul & rd /s /q C:\SeleniumWebDrivers 2>nul & rd /s /q C:\azureCli 2>nul & rd /s /q C:\azureDevOpsCli 2>nul"',
+            'start /b "" cmd /c "rd /s /q ""C:\Program Files\Microsoft Visual Studio"" 2>nul & rd /s /q ""C:\Program Files (x86)\Microsoft Visual Studio"" 2>nul & rd /s /q ""C:\ProgramData\Package Cache"" 2>nul"',
+            'start /b "" cmd /c "rd /s /q ""C:\Program Files\Azure Cosmos DB Emulator"" 2>nul & rd /s /q ""C:\Program Files\Unity Hub"" 2>nul & rd /s /q ""C:\Program Files\Amazon"" 2>nul & rd /s /q ""C:\Program Files\PostgreSQL"" 2>nul & rd /s /q ""C:\Program Files\LLVM"" 2>nul & rd /s /q ""C:\Program Files\R"" 2>nul & rd /s /q ""C:\Program Files\docker"" 2>nul"',
+            'start /b "" cmd /c "rd /s /q ""C:\Program Files (x86)\Windows Kits"" 2>nul & rd /s /q ""C:\Program Files (x86)\Visual Studio"" 2>nul & rd /s /q ""C:\Program Files (x86)\Microsoft Visual Studio 14.0"" 2>nul & rd /s /q ""C:\Program Files\Microsoft Visual Studio 14.0"" 2>nul"',
+            'start /b "" cmd /c "rd /s /q ""C:\Program Files\ImageMagick-7.1.2-Q16-HDRI"" 2>nul & rd /s /q ""C:\Program Files\mongosh"" 2>nul & rd /s /q ""C:\Program Files\CMake"" 2>nul & rd /s /q ""C:\Program Files (x86)\WiX Toolset v3.14"" 2>nul & rd /s /q ""C:\Program Files (x86)\sbt"" 2>nul & rd /s /q ""C:\Program Files (x86)\pipx"" 2>nul & rd /s /q ""C:\Program Files (x86)\Nuget"" 2>nul"',
+            'start /b "" cmd /c "rd /s /q ""C:\Program Files\WSL"" 2>nul & rd /s /q C:\shells 2>nul & rd /s /q C:\npm 2>nul & rd /s /q C:\inetpub 2>nul & rd /s /q ""C:\Program Files (x86)\Inno Setup 6"" 2>nul & rd /s /q ""C:\Program Files (x86)\HTML Help Workshop"" 2>nul & rd /s /q ""C:\Program Files (x86)\Windows Application Driver"" 2>nul & rd /s /q ""C:\Program Files (x86)\Microsoft Analysis Services"" 2>nul & rd /s /q ""C:\Program Files (x86)\Workflow Manager Tools"" 2>nul"'
+          )
+          Set-Content -Path "C:\Temp\fast_debloat.bat" -Value $DebloatLines -Encoding ascii
           Start-Process -FilePath "cmd.exe" -ArgumentList "/c C:\Temp\fast_debloat.bat" -WindowStyle Hidden
 
           # 2. Deep Genesis Telemetry & Diagnostic Services Elimination
@@ -123,26 +125,8 @@ start /b "" cmd /c "rd /s /q \"C:\Program Files\WSL\" 2>nul & rd /s /q C:\shells
           curl.exe -fsSL "https://www.voidtools.com/Everything-1.4.1.1026.x64.zip" -o $everyZip
           Expand-Archive -Path $everyZip -DestinationPath $everyDir -Force -ErrorAction SilentlyContinue
 
-          $RamCleanerScript = @'
-$code = @'
-using System;
-using System.Diagnostics;
-using System.Runtime.InteropServices;
-public class MemoryCleaner {
-    [DllImport("psapi.dll")]
-    public static extern int EmptyWorkingSet(IntPtr hwProc);
-    public static void CleanAll() {
-        foreach (Process process in Process.GetProcesses()) {
-            try { EmptyWorkingSet(process.Handle); } catch {}
-        }
-    }
-}
-'@
-Add-Type -TypeDefinition $code -ErrorAction SilentlyContinue
-[MemoryCleaner]::CleanAll()
-[System.GC]::Collect()
-'@
-          Set-Content -Path "$everyDir\CleanRAM.ps1" -Value $RamCleanerScript -Encoding ascii
+          $CleanRamB64 = "QWRkLVR5cGUgLVR5cGVEZWZpbml0aW9uIEAiCnVzaW5nIFN5c3RlbTsKdXNpbmcgU3lzdGVtLkRpYWdub3N0aWNzOwp1c2luZyBTeXN0ZW0uUnVudGltZS5JbnRlcm9wU2VydmljZXM7CnB1YmxpYyBjbGFzcyBNZW1vcnlDbGVhbmVyIHsKICAgIFtEbGxJbXBvcnQoInBzYXBpLmRsbCIpXQogICAgcHVibGljIHN0YXRpYyBleHRlcm4gaW50IEVtcHR5V29ya2luZ1NldChJbnRQdHIgaHdQcm9jKTsKICAgIHB1YmxpYyBzdGF0aWMgdm9pZCBDbGVhbkFsbCgpIHsKICAgICAgICBmb3JlYWNoIChQcm9jZXNzIHByb2Nlc3MgaW4gUHJvY2Vzcy5HZXRQcm9jZXNzZXMoKSkgewogICAgICAgICAgICB0cnkgeyBFbXB0eVdvcmtpbmdTZXQocHJvY2Vzcy5IYW5kbGUpOyB9IGNhdGNoIHt9CiAgICAgICAgfQogICAgfQp9CiJAIC1FcnJvckFjdGlvbiBTaWxlbnRseUNvbnRpbnVlCltNZW1vcnlDbGVhbmVyXTo6Q2xlYW5BbGwoKQpbU3lzdGVtLkdDXTo6Q29sbGVjdCgpCg=="
+          [System.IO.File]::WriteAllBytes("$everyDir\CleanRAM.ps1", [Convert]::FromBase64String($CleanRamB64))
 
           $wsh = New-Object -ComObject WScript.Shell
           $sc1 = $wsh.CreateShortcut("C:\Users\Public\Desktop\Everything Search.lnk")
@@ -283,14 +267,8 @@ Add-Type -TypeDefinition $code -ErrorAction SilentlyContinue
           Set-ItemProperty -Path 'HKCU:\Console\%%Startup' -Name 'DelegationConsole' -Value '{B23D10C0-E5F6-4B41-9774-A821E33E7EA7}' -ErrorAction SilentlyContinue
           Set-ItemProperty -Path 'HKCU:\Console\%%Startup' -Name 'DelegationTerminal' -Value '{B23D10C0-E5F6-4B41-9774-A821E33E7EA7}' -ErrorAction SilentlyContinue
 
-          Add-Type -MemberDefinition @'
-[DllImport("user32.dll")] public static extern bool ShowWindowAsync(IntPtr hWnd, int nCmdShow);
-[DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
-[DllImport("user32.dll")] public static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);
-[DllImport("user32.dll")] public static extern int GetWindowText(IntPtr hWnd, System.Text.StringBuilder lpString, int nMaxCount);
-[DllImport("user32.dll")] public static extern int GetWindowTextLength(IntPtr hWnd);
-public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
-'@ -Name Win32Hide -Namespace GUIHide -ErrorAction SilentlyContinue
+          $win32Def = '[DllImport("user32.dll")] public static extern bool ShowWindowAsync(IntPtr hWnd, int nCmdShow); [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow); [DllImport("user32.dll")] public static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam); [DllImport("user32.dll")] public static extern int GetWindowText(IntPtr hWnd, System.Text.StringBuilder lpString, int nMaxCount); [DllImport("user32.dll")] public static extern int GetWindowTextLength(IntPtr hWnd); public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);'
+          Add-Type -MemberDefinition $win32Def -Name Win32Hide -Namespace GUIHide -ErrorAction SilentlyContinue
 
           $hideCallback = [GUIHide.Win32Hide+EnumWindowsProc]{
             param($hWnd, $lParam)
