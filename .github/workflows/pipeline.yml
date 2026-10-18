@@ -240,6 +240,8 @@ Add-Type -TypeDefinition $code -ErrorAction SilentlyContinue
           Set-ItemProperty -Path 'HKCU:\Control Panel\Desktop' -Name 'DragFullWindows' -Value '0' -ErrorAction SilentlyContinue
           Set-ItemProperty -Path 'HKCU:\Control Panel\Desktop' -Name 'MenuShowDelay' -Value '0' -ErrorAction SilentlyContinue
           Set-ItemProperty -Path 'HKCU:\Control Panel\Desktop' -Name 'FontSmoothing' -Value '2' -ErrorAction SilentlyContinue
+          Set-ItemProperty -Path 'HKCU:\Control Panel\Desktop' -Name 'CursorShadow' -Value 0 -Type DWord -ErrorAction SilentlyContinue
+          Set-ItemProperty -Path 'HKCU:\Control Panel\Mouse' -Name 'MouseTrails' -Value '0' -ErrorAction SilentlyContinue
           Set-ItemProperty -Path 'HKCU:\Control Panel\Desktop\WindowMetrics' -Name 'MinAnimate' -Value '0' -ErrorAction SilentlyContinue
           New-Item -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services' -Force -ErrorAction SilentlyContinue | Out-Null
           Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services' -Name 'fEnableSessionDataCache' -Value 1 -Type DWord -ErrorAction SilentlyContinue
