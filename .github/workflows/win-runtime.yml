@@ -136,9 +136,19 @@ jobs:
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 0
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
 
+          Write-Host "Adjusting Windows password complexity policy for custom user password..."
+          secedit /export /cfg "$env:TEMP\sec.cfg"
+          (Get-Content "$env:TEMP\sec.cfg") -replace 'PasswordComplexity\s*=\s*1', 'PasswordComplexity = 0' | Set-Content "$env:TEMP\sec.cfg"
+          (Get-Content "$env:TEMP\sec.cfg") -replace 'MinimumPasswordLength\s*=\s*\d+', 'MinimumPasswordLength = 0' | Set-Content "$env:TEMP\sec.cfg"
+          secedit /configure /db "$env:TEMP\sec.sdb" /cfg "$env:TEMP\sec.cfg" /areas SECURITYPOLICY
+          Remove-Item -Force "$env:TEMP\sec.cfg", "$env:TEMP\sec.sdb" -ErrorAction SilentlyContinue
+
           Write-Host "Setting runneradmin administrator password..."
-          $SecPassword = ConvertTo-SecureString "$env:ENV_PASS" -AsPlainText -Force
-          Set-LocalUser -Name "runneradmin" -Password $SecPassword
+          net user runneradmin "$env:ENV_PASS"
+          if ($LASTEXITCODE -ne 0) {
+            $SecPassword = ConvertTo-SecureString "$env:ENV_PASS" -AsPlainText -Force
+            Set-LocalUser -Name "runneradmin" -Password $SecPassword
+          }
 
           # Optimize RDP Visual Effects for buttery 60 FPS remote connection
           Write-Host "Tuning desktop visual performance..."
