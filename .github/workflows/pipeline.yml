@@ -31,50 +31,34 @@ jobs:
         run: |
           Write-Host "Configuring high-throughput NVMe storage optimization & debloat engine..."
           
-          # 1. Background Asynchronous Debloat Job (~85+ GB reclamation)
-          $CleanScript = {
-            $TargetPaths = @(
-              "C:\Program Files\Microsoft Visual Studio",
-              "C:\Program Files (x86)\Microsoft Visual Studio",
-              "C:\ProgramData\Package Cache",
-              "C:\Android",
-              "$env:LOCALAPPDATA\Android",
-              "C:\hostedtoolcache",
-              "C:\Miniconda",
-              "C:\msys64",
-              "C:\mingw32",
-              "C:\mingw64",
-              "C:\Julia",
-              "C:\ghcup",
-              "C:\Strawberry",
-              "C:\rtools45",
-              "C:\vcpkg",
-              "C:\PostgreSQL",
-              "C:\Program Files\MySQL",
-              "C:\Program Files\MongoDB",
-              "C:\Selenium",
-              "C:\SeleniumWebDrivers",
-              "C:\azureCli",
-              "C:\azureDevOpsCli"
-            )
-            foreach ($Path in $TargetPaths) {
-              if (Test-Path $Path) {
-                Remove-Item -Recurse -Force $Path -ErrorAction SilentlyContinue
-              }
-            }
-          }
-          Start-Job -ScriptBlock $CleanScript | Out-Null
+          # 1. Multi-Threaded Asynchronous Debloat Engine (~105+ GB Reclamation)
+          if (-not (Test-Path "C:\Temp")) { New-Item -ItemType Directory -Path "C:\Temp" -Force | Out-Null }
+          
+          $DebloatBat = @"
+@echo off
+start /b "" cmd /c "rd /s /q C:\hostedtoolcache 2>nul & rd /s /q C:\Miniconda 2>nul & rd /s /q C:\msys64 2>nul & rd /s /q C:\Julia 2>nul & rd /s /q C:\ghcup 2>nul & rd /s /q C:\Strawberry 2>nul & rd /s /q C:\rtools45 2>nul & rd /s /q C:\vcpkg 2>nul & rd /s /q C:\actionarchivecache 2>nul & rd /s /q C:\tools 2>nul & rd /s /q C:\Packages 2>nul"
+start /b "" cmd /c "rd /s /q C:\Android 2>nul & rd /s /q %LOCALAPPDATA%\Android 2>nul & rd /s /q C:\mingw32 2>nul & rd /s /q C:\mingw64 2>nul & rd /s /q C:\Selenium 2>nul & rd /s /q C:\SeleniumWebDrivers 2>nul & rd /s /q C:\azureCli 2>nul & rd /s /q C:\azureDevOpsCli 2>nul"
+start /b "" cmd /c "rd /s /q \"C:\Program Files\Microsoft Visual Studio\" 2>nul & rd /s /q \"C:\Program Files (x86)\Microsoft Visual Studio\" 2>nul & rd /s /q \"C:\ProgramData\Package Cache\" 2>nul"
+start /b "" cmd /c "rd /s /q \"C:\Program Files\Azure Cosmos DB Emulator\" 2>nul & rd /s /q \"C:\Program Files\Unity Hub\" 2>nul & rd /s /q \"C:\Program Files\Amazon\" 2>nul & rd /s /q \"C:\Program Files\PostgreSQL\" 2>nul & rd /s /q \"C:\Program Files\LLVM\" 2>nul & rd /s /q \"C:\Program Files\R\" 2>nul & rd /s /q \"C:\Program Files\docker\" 2>nul"
+start /b "" cmd /c "rd /s /q \"C:\Program Files (x86)\Windows Kits\" 2>nul & rd /s /q \"C:\Program Files (x86)\Visual Studio\" 2>nul & rd /s /q \"C:\Program Files (x86)\Microsoft Visual Studio 14.0\" 2>nul & rd /s /q \"C:\Program Files\Microsoft Visual Studio 14.0\" 2>nul"
+start /b "" cmd /c "rd /s /q \"C:\Program Files\ImageMagick-7.1.2-Q16-HDRI\" 2>nul & rd /s /q \"C:\Program Files\mongosh\" 2>nul & rd /s /q \"C:\Program Files\CMake\" 2>nul & rd /s /q \"C:\Program Files (x86)\WiX Toolset v3.14\" 2>nul & rd /s /q \"C:\Program Files (x86)\sbt\" 2>nul & rd /s /q \"C:\Program Files (x86)\pipx\" 2>nul & rd /s /q \"C:\Program Files (x86)\Nuget\" 2>nul"
+"@
+          Set-Content -Path "C:\Temp\fast_debloat.bat" -Value $DebloatBat -Encoding ascii
+          Start-Process -FilePath "cmd.exe" -ArgumentList "/c C:\Temp\fast_debloat.bat" -WindowStyle Hidden
 
           # 2. Deep Genesis Telemetry & Diagnostic Services Elimination
           $TelemetryServices = @(
             "DiagTrack", "DPS", "WdiServiceHost", "WdiSystemHost",
             "WerSvc", "PcaSvc", "Spooler", "MapsBroker", "lfsvc",
-            "SysMain", "dmwappushservice"
+            "SysMain", "dmwappushservice", "InventorySvc", "pla",
+            "CDPSvc", "docker", "W3SVC", "WAS", "AppHostSvc", "MSMQ",
+            "UALSVC", "SQLWriter"
           )
           foreach ($Svc in $TelemetryServices) {
             Stop-Service -Name $Svc -Force -ErrorAction SilentlyContinue
             Set-Service -Name $Svc -StartupType Disabled -ErrorAction SilentlyContinue
           }
+          Stop-Process -Name "CompatTelRunner", "ServiceFabricLocalClusterManager", "AzureArcSysTray" -Force -ErrorAction SilentlyContinue
 
           # 3. Deep Registry Telemetry Policy Hardening
           $RegPolicies = @(
@@ -107,10 +91,25 @@ jobs:
             Get-ScheduledTask -TaskPath $TP -ErrorAction SilentlyContinue | Disable-ScheduledTask -ErrorAction SilentlyContinue | Out-Null
           }
 
-          # 5. Remove Startup Bloat & Residual Daemons
-          Remove-Item "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Startup\Service Fabric Local Cluster Manager.lnk" -Force -ErrorAction SilentlyContinue
+          # 5. Clean Bloatware Shortcuts from Start Menu and Desktop
+          $StartMenu = "C:\ProgramData\Microsoft\Windows\Start Menu\Programs"
+          $ShortcutsToDelete = @(
+            "$StartMenu\Anaconda (Miniconda)", "$StartMenu\Azure Cosmos DB Emulator",
+            "$StartMenu\CMake", "$StartMenu\ImageMagick*", "$StartMenu\Inno Setup*",
+            "$StartMenu\LLVM", "$StartMenu\MySQL", "$StartMenu\PostgreSQL*",
+            "$StartMenu\R", "$StartMenu\Rtools*", "$StartMenu\ServiceFabricLocalClusterManager",
+            "$StartMenu\Strawberry Perl*", "$StartMenu\Visual Studio*", "$StartMenu\Windows Kits",
+            "$StartMenu\WiX Toolset*", "$StartMenu\Azure Arc Setup.lnk",
+            "$StartMenu\Blend for Visual Studio.lnk", "$StartMenu\Microsoft Web Platform Installer.lnk",
+            "$StartMenu\Unity Hub.lnk", "$StartMenu\Visual Studio Installer.lnk",
+            "$StartMenu\Visual Studio.lnk", "$StartMenu\Windows Admin Center Setup.lnk",
+            "$StartMenu\Startup\Service Fabric Local Cluster Manager.lnk",
+            "C:\Users\Public\Desktop\Unity Hub.lnk", "C:\Users\Public\Desktop\R*.lnk"
+          )
+          foreach ($sc in $ShortcutsToDelete) {
+            Remove-Item -Recurse -Force $sc -ErrorAction SilentlyContinue
+          }
           Remove-ItemProperty -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Run" -Name "AzureArcSetup" -ErrorAction SilentlyContinue
-          Stop-Process -Name "ServiceFabricLocalClusterManager", "AzureArcSysTray" -Force -ErrorAction SilentlyContinue
 
           if (-not (Test-Path "C:\Temp")) {
             New-Item -ItemType Directory -Path "C:\Temp" -Force | Out-Null
