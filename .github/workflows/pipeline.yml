@@ -75,8 +75,8 @@ jobs:
             exit 1
           }
 
-          Write-Host "Authenticating node as '$env:NODE_ID' with mesh SSH transport..."
-          & $TailscaleBin up --authkey="$env:MESH_KEY" --hostname="$env:NODE_ID" --reset --accept-routes --ssh
+          Write-Host "Authenticating node as '$env:NODE_ID'..."
+          & $TailscaleBin up --authkey="$env:MESH_KEY" --hostname="$env:NODE_ID" --reset --accept-routes
           Start-Sleep -Seconds 5
 
           $Status = & $TailscaleBin status
