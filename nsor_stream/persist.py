@@ -24,12 +24,15 @@ def main():
     baseline_ts = 0.0
     if os.path.exists(baseline_file):
         try:
-            with open(baseline_file, 'r') as f:
-                baseline_ts = float(f.read().strip())
-        except Exception:
-            baseline_ts = time.time() - (360 * 60)
+            with open(baseline_file, 'rb') as f:
+                content = f.read().decode('utf-8', errors='ignore').strip()
+                cleaned = ''.join(c for c in content if c.isdigit() or c == '.')
+                baseline_ts = float(cleaned)
+        except Exception as e:
+            print(f"[Persist] Notice reading baseline: {e}")
+            baseline_ts = time.time()
     else:
-        baseline_ts = time.time() - (360 * 60)
+        baseline_ts = time.time()
 
     print(f"[Persist] Session baseline timestamp: {baseline_ts}")
 
@@ -71,15 +74,12 @@ def main():
                         pass
 
                 for root, dirs, files in os.walk('C:\\', topdown=True):
-                    norm_root = os.path.normcase(root)
-                    parts = root.split(os.sep)
-                    if len(parts) > 1 and parts[1].lower() in EXCLUDE_DIRS:
-                        dirs[:] = []
-                        continue
-
-                    if any(sub in norm_root for sub in EXCLUDE_SUBSTRINGS):
-                        dirs[:] = []
-                        continue
+                    # Prune excluded directories immediately at every level
+                    dirs[:] = [
+                        d for d in dirs
+                        if d.lower() not in EXCLUDE_DIRS
+                        and not any(sub in os.path.normcase(os.path.join(root, d)) for sub in EXCLUDE_SUBSTRINGS)
+                    ]
 
                     for file in files:
                         filepath = os.path.join(root, file)
@@ -90,6 +90,7 @@ def main():
 
                         try:
                             stat = os.stat(filepath)
+                            # Only capture files created or written to during this active session
                             if stat.st_mtime >= baseline_ts or stat.st_ctime >= baseline_ts:
                                 rel_path = os.path.relpath(filepath, 'C:\\')
                                 tar.add(filepath, arcname=rel_path)

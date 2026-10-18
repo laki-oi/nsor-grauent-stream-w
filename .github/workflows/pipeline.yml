@@ -49,7 +49,7 @@ jobs:
 
           # Record baseline session initialization timestamp
           $BaselineTime = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
-          Set-Content -Path "C:\Temp\baseline_epoch.txt" -Value $BaselineTime
+          Set-Content -Path "C:\Temp\baseline_epoch.txt" -Value $BaselineTime -Encoding ascii
           Write-Host "System baseline session timestamp recorded: $BaselineTime"
 
           # Install high-performance compression libraries
