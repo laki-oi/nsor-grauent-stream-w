@@ -205,7 +205,7 @@ jobs:
           if (-not (Test-Path $DesktopPath)) { New-Item -ItemType Directory -Path $DesktopPath -Force | Out-Null }
 
           # 1. RootEnv Explorer Shortcut
-          $Shortcut1 = $WshShell.CreateShortcut("$DesktopPath\🚀 Launch RootEnv Explorer.lnk")
+          $Shortcut1 = $WshShell.CreateShortcut("$DesktopPath\Launch_RootEnv_Explorer.lnk")
           $Shortcut1.TargetPath = "C:\Program Files\Sandboxie-Plus\Start.exe"
           $Shortcut1.Arguments = '/box:RootEnv explorer.exe "C:\"'
           $Shortcut1.WorkingDirectory = "C:\"
@@ -213,7 +213,7 @@ jobs:
           $Shortcut1.Save()
 
           # 2. RootEnv Terminal Shortcut
-          $Shortcut2 = $WshShell.CreateShortcut("$DesktopPath\⚡ Launch RootEnv Terminal.lnk")
+          $Shortcut2 = $WshShell.CreateShortcut("$DesktopPath\Launch_RootEnv_Terminal.lnk")
           $Shortcut2.TargetPath = "C:\Program Files\Sandboxie-Plus\Start.exe"
           $Shortcut2.Arguments = '/box:RootEnv powershell.exe'
           $Shortcut2.WorkingDirectory = "C:\"
@@ -221,7 +221,7 @@ jobs:
           $Shortcut2.Save()
 
           # 3. Direct Storage Folder Shortcut
-          $Shortcut3 = $WshShell.CreateShortcut("$DesktopPath\📂 Persistent Storage (RootEnv).lnk")
+          $Shortcut3 = $WshShell.CreateShortcut("$DesktopPath\Persistent_Storage_RootEnv.lnk")
           $Shortcut3.TargetPath = "C:\RootEnv\RootEnv"
           $Shortcut3.Save()
 
