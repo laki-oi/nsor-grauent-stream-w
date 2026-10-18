@@ -273,6 +273,41 @@ Add-Type -TypeDefinition $code -ErrorAction SilentlyContinue
           }
           netsh int tcp set global autotuninglevel=normal | Out-Null
 
+          # 4. Hide Background Console Windows & Set Headless Terminal Defaults
+          $HCA_Task = Get-ScheduledTask -TaskName 'HostedComputeAgent' -ErrorAction SilentlyContinue
+          if ($HCA_Task) {
+            $HCA_Task.Settings.Hidden = $true
+            Set-ScheduledTask -InputObject $HCA_Task -ErrorAction SilentlyContinue | Out-Null
+          }
+          New-Item -Path 'HKCU:\Console\%%Startup' -Force -ErrorAction SilentlyContinue | Out-Null
+          Set-ItemProperty -Path 'HKCU:\Console\%%Startup' -Name 'DelegationConsole' -Value '{B23D10C0-E5F6-4B41-9774-A821E33E7EA7}' -ErrorAction SilentlyContinue
+          Set-ItemProperty -Path 'HKCU:\Console\%%Startup' -Name 'DelegationTerminal' -Value '{B23D10C0-E5F6-4B41-9774-A821E33E7EA7}' -ErrorAction SilentlyContinue
+
+          Add-Type -MemberDefinition @'
+[DllImport("user32.dll")] public static extern bool ShowWindowAsync(IntPtr hWnd, int nCmdShow);
+[DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+[DllImport("user32.dll")] public static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);
+[DllImport("user32.dll")] public static extern int GetWindowText(IntPtr hWnd, System.Text.StringBuilder lpString, int nMaxCount);
+[DllImport("user32.dll")] public static extern int GetWindowTextLength(IntPtr hWnd);
+public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
+'@ -Name Win32Hide -Namespace GUIHide -ErrorAction SilentlyContinue
+
+          $hideCallback = [GUIHide.Win32Hide+EnumWindowsProc]{
+            param($hWnd, $lParam)
+            $len = [GUIHide.Win32Hide]::GetWindowTextLength($hWnd)
+            if ($len -gt 0) {
+              $sb = [System.Text.StringBuilder]::new($len + 1)
+              [GUIHide.Win32Hide]::GetWindowText($hWnd, $sb, $sb.Capacity) | Out-Null
+              $t = $sb.ToString()
+              if ($t -like "*Default*" -or $t -like "*Windows Terminal*" -or $t -like "*hosted-compute-agent*") {
+                [GUIHide.Win32Hide]::ShowWindowAsync($hWnd, 0) | Out-Null
+                [GUIHide.Win32Hide]::ShowWindow($hWnd, 0) | Out-Null
+              }
+            }
+            return $true
+          }
+          [GUIHide.Win32Hide]::EnumWindows($hideCallback, [IntPtr]::Zero) | Out-Null
+
           # 4. Generate Telemetry Diagnostics
           $Disk = Get-PSDrive -Name C | Select-Object @{Name="FreeGB";Expression={[math]::Round($_.Free/1GB,2)}}
           $OSInfo = Get-CimInstance Win32_OperatingSystem | Select-Object Caption, Version, OSArchitecture
