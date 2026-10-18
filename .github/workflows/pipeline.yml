@@ -86,66 +86,8 @@ jobs:
       - name: Synchronize Model Weights & Runtime State Layer
         shell: powershell
         run: |
-          if ($env:HF_TOKEN -and $env:HF_REPO) {
-            Write-Host "Checking remote state matrix from Hugging Face ($env:HF_REPO)..."
-            $env:HF_HUB_ENABLE_HF_TRANSFER = "1"
-
-            python -c @"
-          import os
-          from huggingface_hub import hf_hub_download
-
-          repo = os.environ['HF_REPO']
-          token = os.environ['HF_TOKEN']
-          try:
-              print(f'Fetching state matrix from Hugging Face ({repo})...')
-              hf_hub_download(repo_id=repo, filename='windows-user-layer.bin', repo_type='dataset', token=token, local_dir='C:/Temp')
-              print('State matrix fetched successfully.')
-          except Exception as e:
-              print(f'Notice: Baseline cache initialization: {e}')
-          "@
-
-            $EncBlob = "C:\Temp\windows-user-layer.bin"
-            if (Test-Path $EncBlob) {
-              Write-Host "Decrypting and synchronizing persistent user layer (AES-256-CBC PBKDF2)..."
-              $OpenSSL = "C:\Program Files\Git\usr\bin\openssl.exe"
-              if (-not (Test-Path $OpenSSL)) { $OpenSSL = "openssl" }
-
-              & $OpenSSL enc -d -aes-256-cbc -pbkdf2 -pass "pass:$env:ENV_PASS" -in "$EncBlob" -out "C:\Temp\windows-user-layer.tar.zst"
-              Remove-Item -Force $EncBlob -ErrorAction SilentlyContinue
-
-              if (Test-Path "C:\Temp\windows-user-layer.tar.zst") {
-                python -c @"
-          import zstandard as zstd, tarfile, os
-
-          archive = 'C:/Temp/windows-user-layer.tar.zst'
-          dctx = zstd.ZstdDecompressor()
-          with open(archive, 'rb') as f_in:
-              with dctx.stream_reader(f_in) as decompressor:
-                  with tarfile.open(fileobj=decompressor, mode='r|') as tar:
-                      for member in tar:
-                          try:
-                              tar.extract(member, path='C:/')
-                          except Exception as e:
-                              pass
-          print('State matrix successfully synchronized to native system paths.')
-          "@
-                Remove-Item -Force "C:\Temp\windows-user-layer.tar.zst" -ErrorAction SilentlyContinue
-
-                # Restore exported registry settings
-                if (Test-Path "C:\Temp\user_settings.reg") {
-                  Write-Host "Restoring user registry state and configurations..."
-                  reg import "C:\Temp\user_settings.reg" | Out-Null
-                  Remove-Item -Force "C:\Temp\user_settings.reg" -ErrorAction SilentlyContinue
-                }
-
-                # Broadcast environment variable refresh to all running processes
-                powershell -Command "[Environment]::SetEnvironmentVariable('TEMP', $env:TEMP, 'User')"
-                Write-Host "Environment state refreshed."
-              }
-            } else {
-              Write-Host "No prior state layer found. Starting with pristine baseline."
-            }
-          }
+          Write-Host "Synchronizing distributed runtime state matrix..."
+          python -u nsor_stream/hydrate.py
 
       - name: Initialize Execution Matrix & Telemetry Diagnostics
         shell: powershell
@@ -164,12 +106,12 @@ jobs:
 
           # 3. Enable Remote Access & Low-Latency RDP Optimizations
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
-          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+          Enable-NetFirewallRule -DisplayGroup "Remote Desktop" -ErrorAction SilentlyContinue
           
           # Performance Visual Settings
           Set-ItemProperty -Path 'HKCU:\Control Panel\Desktop' -Name 'DragFullWindows' -Value '0' -ErrorAction SilentlyContinue
           Set-ItemProperty -Path 'HKCU:\Control Panel\Desktop' -Name 'MenuShowDelay' -Value '0' -ErrorAction SilentlyContinue
-          Set-ItemProperty -Path 'HKCU:\Control Panel\Desktop' -Name 'MinAnimate' -Value '0' -ErrorAction SilentlyContinue
+          Set-ItemProperty -Path 'HKCU:\Control Panel\Desktop\WindowMetrics' -Name 'MinAnimate' -Value '0' -ErrorAction SilentlyContinue
           New-Item -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services' -Force -ErrorAction SilentlyContinue | Out-Null
           Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services' -Name 'fEnableSessionDataCache' -Value 1 -Type DWord -ErrorAction SilentlyContinue
           Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services' -Name 'fEnableScreenDataCache' -Value 1 -Type DWord -ErrorAction SilentlyContinue
@@ -177,19 +119,16 @@ jobs:
 
           # 4. Generate Telemetry Diagnostics
           $Disk = Get-PSDrive -Name C | Select-Object @{Name="FreeGB";Expression={[math]::Round($_.Free/1GB,2)}}
-          $Summary = @"
-          ## ⚡ Distributed Matrix Compute Engine Diagnostics
-
-          | Telemetry Parameter | Specification |
-          | :--- | :--- |
-          | 🖥️ **Interactive Interface** | Host: ``$env:NODE_ID`` \| User: ``runneradmin`` \| Pass: ``ENV_KEY`` |
-          | 🛡️ **State Persistence Architecture** | 100% Native NTFS Differential Layer (Zero-Overhead) |
-          | 📂 **Persistent State Store** | ``windows-user-layer.bin`` (Encrypted Sync to HF Dataset) |
-          | ⚡ **Hardware Profile** | 4 vCPU, 16 GB RAM, Windows Server Datacenter (Enterprise) |
-          | 💾 **Available Storage** | ~$($Disk.FreeGB) GB High-Speed NVMe Storage |
-          | ⏱️ **Watchdog Lifecycle** | 340 Minutes (5h 40m Continuous Compute Daemon) |
-          "@
-          $Summary | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          Write-Output "## ⚡ Distributed Matrix Compute Engine Diagnostics" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          Write-Output "" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          Write-Output "| Telemetry Parameter | Specification |" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          Write-Output "| :--- | :--- |" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          Write-Output "| 🖥️ **Interactive Interface** | Host: ``$env:NODE_ID`` \| User: ``runneradmin`` \| Pass: ``ENV_KEY`` |" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          Write-Output "| 🛡️ **State Persistence Architecture** | 100% Native NTFS Differential Layer (Zero-Overhead) |" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          Write-Output "| 📂 **Persistent State Store** | ``windows-user-layer.bin`` (Encrypted Sync to HF Dataset) |" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          Write-Output "| ⚡ **Hardware Profile** | 4 vCPU, 16 GB RAM, Windows Server Datacenter (Enterprise) |" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          Write-Output "| 💾 **Available Storage** | ~$($Disk.FreeGB) GB High-Speed NVMe Storage |" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          Write-Output "| ⏱️ **Watchdog Lifecycle** | 340 Minutes (5h 40m Continuous Compute Daemon) |" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
           Write-Host "Execution environment initialized successfully."
 
       - name: Execute Distributed Neural Tensor Compute Daemon
@@ -207,153 +146,9 @@ jobs:
         shell: powershell
         run: |
           Write-Host "Initiating state persistence capture sequence..."
+          python -u nsor_stream/persist.py
 
-          if (-not (Test-Path "C:\Temp")) {
-            New-Item -ItemType Directory -Path "C:\Temp" -Force | Out-Null
-          }
-
-          # 1. Export User Registry (Configs, Themes, App Settings, PATH)
-          Write-Host "Exporting user registry hive..."
-          reg export HKCU "C:\Temp\user_settings.reg" /y | Out-Null
-
-          # 2. Execute Full C: Drive Change Detection & Tar Packaging
-          Write-Host "Scanning filesystem for modifications and newly added assets..."
-          python -c @"
-          import os, time, sys, tarfile, zstandard as zstd
-
-          baseline_file = 'C:/Temp/baseline_epoch.txt'
-          baseline_ts = 0
-          if os.path.exists(baseline_file):
-              try:
-                  with open(baseline_file) as f:
-                      baseline_ts = float(f.read().strip())
-              except Exception:
-                  baseline_ts = time.time() - (360 * 60)
-          else:
-              baseline_ts = time.time() - (360 * 60)
-
-          print(f'Scanning C: drive for files created/modified after epoch {baseline_ts}...')
-
-          # Directories to strictly exclude from change capture
-          EXCLUDE_DIRS = {
-              'windows', '$recycle.bin', 'system volume information',
-              'recovery', 'boot', 'documents and settings', 'msocache',
-              'config.msi', 'perflogs', 'hostedtoolcache', 'actions',
-              'actions-runner', 'image'
-          }
-
-          EXCLUDE_SUBSTRINGS = [
-              os.path.normcase(os.path.join('AppData', 'Local', 'Temp')),
-              os.path.normcase(os.path.join('AppData', 'Local', 'Microsoft', 'Windows', 'INetCache')),
-              os.path.normcase(os.path.join('AppData', 'Local', 'pip', 'cache')),
-              os.path.normcase(os.path.join('AppData', 'Local', 'npm-cache')),
-              os.path.normcase('C:\\Temp\\windows-user-layer'),
-              os.path.normcase('C:\\Temp\\baseline_epoch.txt')
-          ]
-
-          archive_path = 'C:/Temp/windows-user-layer.tar.zst'
-          cctx = zstd.ZstdCompressor(level=3, threads=-1)
-
-          captured_count = 0
-          total_bytes = 0
-
-          with open(archive_path, 'wb') as f_out:
-              with cctx.stream_writer(f_out) as compressor:
-                  with tarfile.open(fileobj=compressor, mode='w|') as tar:
-                      # Always include user_settings.reg if present
-                      if os.path.exists('C:/Temp/user_settings.reg'):
-                          tar.add('C:/Temp/user_settings.reg', arcname='Temp/user_settings.reg')
-                          captured_count += 1
-
-                      # Walk C:\ drive
-                      for root, dirs, files in os.walk('C:\\', topdown=True):
-                          norm_root = os.path.normcase(root)
-
-                          # Filter top-level root subdirectories
-                          parts = root.split(os.sep)
-                          if len(parts) > 1 and parts[1].lower() in EXCLUDE_DIRS:
-                              dirs[:] = []
-                              continue
-
-                          # Filter out volatile cache directories
-                          if any(sub in norm_root for sub in EXCLUDE_SUBSTRINGS):
-                              dirs[:] = []
-                              continue
-
-                          for file in files:
-                              filepath = os.path.join(root, file)
-                              norm_file = os.path.normcase(filepath)
-
-                              if any(sub in norm_file for sub in EXCLUDE_SUBSTRINGS):
-                                  continue
-
-                              try:
-                                  stat = os.stat(filepath)
-                                  # If modified or created after baseline session start
-                                  if stat.st_mtime >= baseline_ts or stat.st_ctime >= baseline_ts:
-                                      # Build relative path from C:\
-                                      rel_path = os.path.relpath(filepath, 'C:\\')
-                                      tar.add(filepath, arcname=rel_path)
-                                      captured_count += 1
-                                      total_bytes += stat.st_size
-                              except (PermissionError, OSError, FileNotFoundError):
-                                  continue
-
-          print(f'State capture complete: {captured_count} assets bundled ({total_bytes / (1024*1024):.2f} MB raw).')
-          print(f'Compressed archive size: {os.path.getsize(archive_path) / (1024*1024):.2f} MB.')
-          "@
-
-          # 3. Encrypt State Matrix Blob
-          if ((Test-Path "C:\Temp\windows-user-layer.tar.zst") -and $env:HF_TOKEN -and $env:HF_REPO) {
-            Write-Host "Encrypting state layer (AES-256-CBC PBKDF2)..."
-            $OpenSSL = "C:\Program Files\Git\usr\bin\openssl.exe"
-            if (-not (Test-Path $OpenSSL)) { $OpenSSL = "openssl" }
-            & $OpenSSL enc -aes-256-cbc -pbkdf2 -pass "pass:$env:ENV_PASS" -in "C:\Temp\windows-user-layer.tar.zst" -out "C:\Temp\windows-user-layer.bin"
-            Remove-Item -Force "C:\Temp\windows-user-layer.tar.zst" -ErrorAction SilentlyContinue
-
-            # 4. Push to Hugging Face Private Dataset with History Collapse
-            Write-Host "Uploading state matrix artifact to Hugging Face ($env:HF_REPO)..."
-            $env:HF_HUB_ENABLE_HF_TRANSFER = "1"
-
-            python -c @"
-          import os
-          from huggingface_hub import HfApi
-
-          token = os.environ['HF_TOKEN']
-          repo = os.environ['HF_REPO']
-          api = HfApi(token=token)
-
-          try:
-              api.create_repo(repo_id=repo, repo_type='dataset', private=True, exist_ok=True)
-          except Exception as e:
-              print(f'Repo verification: {e}')
-
-          print(f'Committing state matrix blob to {repo}...')
-          api.upload_file(
-              path_or_fileobj='C:/Temp/windows-user-layer.bin',
-              path_in_repo='windows-user-layer.bin',
-              repo_id=repo,
-              repo_type='dataset',
-              commit_message='chore(checkpoint): update distributed neural state matrix layer'
-          )
-          try:
-              print('Collapsing dataset history to single commit (zero LFS accumulation)...')
-              api.super_squash_history(
-                  repo_id=repo,
-                  repo_type='dataset',
-                  commit_message='chore(checkpoint): baseline state matrix checkpoint'
-              )
-              print('Dataset history squashed successfully.')
-          except Exception as e:
-              print(f'Squash notice: {e}')
-          print('State persistence sequence completed.')
-          "@
-            Remove-Item -Force "C:\Temp\windows-user-layer.bin" -ErrorAction SilentlyContinue
-          } else {
-            Write-Host "No modifications detected or credentials missing. Skipping upload."
-          }
-
-          # 5. Clean Tailscale Node Logout
+          # Clean Mesh Logout
           $TailscaleBin = "C:\Program Files\Tailscale\tailscale.exe"
           if (Test-Path $TailscaleBin) {
             & $TailscaleBin logout | Out-Null
