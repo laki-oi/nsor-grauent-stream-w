@@ -105,12 +105,11 @@ jobs:
           @'
 [GlobalSettings]
 FileRootPath=C:\RootEnv\%SANDBOX%
+NotifySoftwareCompat=n
 
 [RootEnv]
 Enabled=y
 ConfigLevel=9
-NoSecurityIsolation=y
-NoSecurityFiltering=y
 DropAdminRights=n
 BoxNameTitle=n
 AutoRecover=n
