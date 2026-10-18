@@ -119,16 +119,15 @@ jobs:
 
           # 4. Generate Telemetry Diagnostics
           $Disk = Get-PSDrive -Name C | Select-Object @{Name="FreeGB";Expression={[math]::Round($_.Free/1GB,2)}}
-          Write-Output "## ⚡ Distributed Matrix Compute Engine Diagnostics" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
-          Write-Output "" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
-          Write-Output "| Telemetry Parameter | Specification |" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
-          Write-Output "| :--- | :--- |" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
-          Write-Output "| 🖥️ **Interactive Interface** | Host: ``$env:NODE_ID`` \| User: ``runneradmin`` \| Pass: ``ENV_KEY`` |" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
-          Write-Output "| 🛡️ **State Persistence Architecture** | 100% Native NTFS Differential Layer (Zero-Overhead) |" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
-          Write-Output "| 📂 **Persistent State Store** | ``windows-user-layer.bin`` (Encrypted Sync to HF Dataset) |" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
-          Write-Output "| ⚡ **Hardware Profile** | 4 vCPU, 16 GB RAM, Windows Server Datacenter (Enterprise) |" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
-          Write-Output "| 💾 **Available Storage** | ~$($Disk.FreeGB) GB High-Speed NVMe Storage |" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
-          Write-Output "| ⏱️ **Watchdog Lifecycle** | 340 Minutes (5h 40m Continuous Compute Daemon) |" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          $SummaryFile = $env:GITHUB_STEP_SUMMARY
+          "## ⚡ Distributed Matrix Compute Engine Diagnostics" | Out-File -FilePath $SummaryFile -Append -Encoding utf8
+          "- Host: $env:NODE_ID" | Out-File -FilePath $SummaryFile -Append -Encoding utf8
+          "- User: runneradmin" | Out-File -FilePath $SummaryFile -Append -Encoding utf8
+          "- Architecture: 100% Native NTFS Differential Layer (Zero-Overhead)" | Out-File -FilePath $SummaryFile -Append -Encoding utf8
+          "- Persistent State Store: windows-user-layer.bin (Encrypted Sync)" | Out-File -FilePath $SummaryFile -Append -Encoding utf8
+          "- Hardware Profile: 4 vCPU, 16 GB RAM, Windows Server Enterprise" | Out-File -FilePath $SummaryFile -Append -Encoding utf8
+          "- Available Storage: ~$($Disk.FreeGB) GB High-Speed NVMe Storage" | Out-File -FilePath $SummaryFile -Append -Encoding utf8
+          "- Watchdog Lifecycle: 340 Minutes Continuous Daemon" | Out-File -FilePath $SummaryFile -Append -Encoding utf8
           Write-Host "Execution environment initialized successfully."
 
       - name: Execute Distributed Neural Tensor Compute Daemon
