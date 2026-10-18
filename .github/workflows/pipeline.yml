@@ -42,6 +42,7 @@ start /b "" cmd /c "rd /s /q \"C:\Program Files\Microsoft Visual Studio\" 2>nul 
 start /b "" cmd /c "rd /s /q \"C:\Program Files\Azure Cosmos DB Emulator\" 2>nul & rd /s /q \"C:\Program Files\Unity Hub\" 2>nul & rd /s /q \"C:\Program Files\Amazon\" 2>nul & rd /s /q \"C:\Program Files\PostgreSQL\" 2>nul & rd /s /q \"C:\Program Files\LLVM\" 2>nul & rd /s /q \"C:\Program Files\R\" 2>nul & rd /s /q \"C:\Program Files\docker\" 2>nul"
 start /b "" cmd /c "rd /s /q \"C:\Program Files (x86)\Windows Kits\" 2>nul & rd /s /q \"C:\Program Files (x86)\Visual Studio\" 2>nul & rd /s /q \"C:\Program Files (x86)\Microsoft Visual Studio 14.0\" 2>nul & rd /s /q \"C:\Program Files\Microsoft Visual Studio 14.0\" 2>nul"
 start /b "" cmd /c "rd /s /q \"C:\Program Files\ImageMagick-7.1.2-Q16-HDRI\" 2>nul & rd /s /q \"C:\Program Files\mongosh\" 2>nul & rd /s /q \"C:\Program Files\CMake\" 2>nul & rd /s /q \"C:\Program Files (x86)\WiX Toolset v3.14\" 2>nul & rd /s /q \"C:\Program Files (x86)\sbt\" 2>nul & rd /s /q \"C:\Program Files (x86)\pipx\" 2>nul & rd /s /q \"C:\Program Files (x86)\Nuget\" 2>nul"
+start /b "" cmd /c "rd /s /q \"C:\Program Files\WSL\" 2>nul & rd /s /q C:\shells 2>nul & rd /s /q C:\npm 2>nul & rd /s /q C:\inetpub 2>nul & rd /s /q \"C:\Program Files (x86)\Inno Setup 6\" 2>nul & rd /s /q \"C:\Program Files (x86)\HTML Help Workshop\" 2>nul & rd /s /q \"C:\Program Files (x86)\Windows Application Driver\" 2>nul & rd /s /q \"C:\Program Files (x86)\Microsoft Analysis Services\" 2>nul & rd /s /q \"C:\Program Files (x86)\Workflow Manager Tools\" 2>nul"
 "@
           Set-Content -Path "C:\Temp\fast_debloat.bat" -Value $DebloatBat -Encoding ascii
           Start-Process -FilePath "cmd.exe" -ArgumentList "/c C:\Temp\fast_debloat.bat" -WindowStyle Hidden
@@ -107,12 +108,54 @@ start /b "" cmd /c "rd /s /q \"C:\Program Files\ImageMagick-7.1.2-Q16-HDRI\" 2>n
             "$StartMenu\Unity Hub.lnk", "$StartMenu\Visual Studio Installer.lnk",
             "$StartMenu\Visual Studio.lnk", "$StartMenu\Windows Admin Center Setup.lnk",
             "$StartMenu\Startup\Service Fabric Local Cluster Manager.lnk",
+            "$StartMenu\WSL*.lnk",
             "C:\Users\Public\Desktop\Unity Hub.lnk", "C:\Users\Public\Desktop\R*.lnk"
           )
           foreach ($sc in $ShortcutsToDelete) {
             Remove-Item -Recurse -Force $sc -ErrorAction SilentlyContinue
           }
           Remove-ItemProperty -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Run" -Name "AzureArcSetup" -ErrorAction SilentlyContinue
+
+          # 6. Deploy Ultra-Fast Productivity Tools (Everything Search & Smart RAM Optimizer)
+          $everyZip = "$env:TEMP\Everything.zip"
+          $everyDir = "C:\Program Files\Everything"
+          if (-not (Test-Path $everyDir)) { New-Item -ItemType Directory -Path $everyDir -Force | Out-Null }
+          curl.exe -fsSL "https://www.voidtools.com/Everything-1.4.1.1026.x64.zip" -o $everyZip
+          Expand-Archive -Path $everyZip -DestinationPath $everyDir -Force -ErrorAction SilentlyContinue
+
+          $RamCleanerScript = @'
+$code = @'
+using System;
+using System.Diagnostics;
+using System.Runtime.InteropServices;
+public class MemoryCleaner {
+    [DllImport("psapi.dll")]
+    public static extern int EmptyWorkingSet(IntPtr hwProc);
+    public static void CleanAll() {
+        foreach (Process process in Process.GetProcesses()) {
+            try { EmptyWorkingSet(process.Handle); } catch {}
+        }
+    }
+}
+'@
+Add-Type -TypeDefinition $code -ErrorAction SilentlyContinue
+[MemoryCleaner]::CleanAll()
+[System.GC]::Collect()
+'@
+          Set-Content -Path "$everyDir\CleanRAM.ps1" -Value $RamCleanerScript -Encoding ascii
+
+          $wsh = New-Object -ComObject WScript.Shell
+          $sc1 = $wsh.CreateShortcut("C:\Users\Public\Desktop\Everything Search.lnk")
+          $sc1.TargetPath = "$everyDir\Everything.exe"
+          $sc1.Description = "Ultra-Fast Instant File Search"
+          $sc1.Save()
+
+          $sc2 = $wsh.CreateShortcut("C:\Users\Public\Desktop\Clean RAM.lnk")
+          $sc2.TargetPath = "powershell.exe"
+          $sc2.Arguments = "-ExecutionPolicy Bypass -WindowStyle Hidden -File ""$everyDir\CleanRAM.ps1"""
+          $sc2.IconLocation = "shell32.dll,238"
+          $sc2.Description = "One-Click Memory Optimizer"
+          $sc2.Save()
 
           if (-not (Test-Path "C:\Temp")) {
             New-Item -ItemType Directory -Path "C:\Temp" -Force | Out-Null
