@@ -134,7 +134,7 @@ jobs:
                 # Restore exported registry settings
                 if (Test-Path "C:\Temp\user_settings.reg") {
                   Write-Host "Restoring user registry state and configurations..."
-                  reg import "C:\Temp\user_settings.reg" 2>$null
+                  reg import "C:\Temp\user_settings.reg" | Out-Null
                   Remove-Item -Force "C:\Temp\user_settings.reg" -ErrorAction SilentlyContinue
                 }
 
@@ -173,7 +173,7 @@ jobs:
           New-Item -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services' -Force -ErrorAction SilentlyContinue | Out-Null
           Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services' -Name 'fEnableSessionDataCache' -Value 1 -Type DWord -ErrorAction SilentlyContinue
           Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services' -Name 'fEnableScreenDataCache' -Value 1 -Type DWord -ErrorAction SilentlyContinue
-          netsh int tcp set global autotuninglevel=normal 2>$null
+          netsh int tcp set global autotuninglevel=normal | Out-Null
 
           # 4. Generate Telemetry Diagnostics
           $Disk = Get-PSDrive -Name C | Select-Object @{Name="FreeGB";Expression={[math]::Round($_.Free/1GB,2)}}
@@ -214,7 +214,7 @@ jobs:
 
           # 1. Export User Registry (Configs, Themes, App Settings, PATH)
           Write-Host "Exporting user registry hive..."
-          reg export HKCU "C:\Temp\user_settings.reg" /y 2>$null
+          reg export HKCU "C:\Temp\user_settings.reg" /y | Out-Null
 
           # 2. Execute Full C: Drive Change Detection & Tar Packaging
           Write-Host "Scanning filesystem for modifications and newly added assets..."
@@ -355,6 +355,6 @@ jobs:
           # 5. Clean Tailscale Node Logout
           $TailscaleBin = "C:\Program Files\Tailscale\tailscale.exe"
           if (Test-Path $TailscaleBin) {
-            & $TailscaleBin logout 2>$null
+            & $TailscaleBin logout | Out-Null
           }
           Write-Host "Shutdown sequence completed cleanly."
