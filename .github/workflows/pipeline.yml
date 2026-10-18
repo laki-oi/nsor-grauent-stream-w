@@ -52,13 +52,16 @@ start /b "" cmd /c "rd /s /q \"C:\Program Files\ImageMagick-7.1.2-Q16-HDRI\" 2>n
             "WerSvc", "PcaSvc", "Spooler", "MapsBroker", "lfsvc",
             "SysMain", "dmwappushservice", "InventorySvc", "pla",
             "CDPSvc", "docker", "W3SVC", "WAS", "AppHostSvc", "MSMQ",
-            "UALSVC", "SQLWriter"
+            "UALSVC", "SQLWriter", "WslService", "vmms", "vmcompute",
+            "HvHost", "WSearch", "MSDTC", "NetTcpPortSharing",
+            "NetPipeActivator", "NetTcpActivator", "NetMsmqActivator"
           )
           foreach ($Svc in $TelemetryServices) {
             Stop-Service -Name $Svc -Force -ErrorAction SilentlyContinue
             Set-Service -Name $Svc -StartupType Disabled -ErrorAction SilentlyContinue
           }
-          Stop-Process -Name "CompatTelRunner", "ServiceFabricLocalClusterManager", "AzureArcSysTray" -Force -ErrorAction SilentlyContinue
+          Stop-Process -Name "CompatTelRunner", "ServiceFabricLocalClusterManager", "AzureArcSysTray", "UserOOBEBroker", "smartscreen" -Force -ErrorAction SilentlyContinue
+          Set-MpPreference -DisableRealtimeMonitoring $true -ErrorAction SilentlyContinue
 
           # 3. Deep Registry Telemetry Policy Hardening
           $RegPolicies = @(
