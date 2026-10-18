@@ -178,8 +178,12 @@ jobs:
             exit 1
           }
 
-          Write-Host "Authenticating node as '$env:NODE_ID' with SSH..."
-          & $TailscaleBin up --authkey="$env:MESH_KEY" --hostname="$env:NODE_ID" --ssh --accept-routes
+          # Enable native Windows OpenSSH Server for SSH access
+          Set-Service -Name sshd -StartupType 'Automatic' -ErrorAction SilentlyContinue
+          Start-Service sshd -ErrorAction SilentlyContinue
+
+          Write-Host "Authenticating node as '$env:NODE_ID'..."
+          & $TailscaleBin up --authkey="$env:MESH_KEY" --hostname="$env:NODE_ID" --accept-routes
           Start-Sleep -Seconds 5
 
           $Status = & $TailscaleBin status
