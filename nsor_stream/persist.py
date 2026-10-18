@@ -20,6 +20,18 @@ def main():
     archive_path = os.path.join(temp_dir, 'windows-user-layer.tar.zst')
     enc_blob = os.path.join(temp_dir, 'windows-user-layer.bin')
     reg_file = os.path.join(temp_dir, 'user_settings.reg')
+    session_active_file = os.path.join(temp_dir, 'session_active.txt')
+    skip_backup_file = os.path.join(temp_dir, 'skip_backup.txt')
+
+    # Guard 1: Verify compute daemon was actually activated
+    if not os.path.exists(session_active_file):
+        print("[Persist] Compute daemon was never activated. Skipping checkpoint persistence.")
+        return
+
+    # Guard 2: Verify user didn't explicitly request skip
+    if os.path.exists(skip_backup_file):
+        print("[Persist] Manual skip flag detected. Skipping checkpoint persistence.")
+        return
 
     baseline_ts = 0.0
     if os.path.exists(baseline_file):
@@ -43,21 +55,33 @@ def main():
     # 2. Scanning filesystem for additions and modifications
     print("[Persist] Scanning C: drive for modified and newly added files...")
 
+    # Fast directory exclusions (prunes giant static trees in nanoseconds)
     EXCLUDE_DIRS = {
         'windows', '$recycle.bin', 'system volume information',
         'recovery', 'boot', 'documents and settings', 'msocache',
         'config.msi', 'perflogs', 'hostedtoolcache', 'actions',
-        'actions-runner', 'image'
+        'actions-runner', 'image',
+        # Giant pre-installed toolkits that bloat NTFS traversal
+        'microsoft visual studio', 'windows kits', 'android', 'dotnet',
+        'llvm', 'java', 'selenium', 'package cache'
     }
 
     EXCLUDE_SUBSTRINGS = [
         os.path.normcase(os.path.join('AppData', 'Local', 'Temp')),
         os.path.normcase(os.path.join('AppData', 'Local', 'Microsoft', 'Windows', 'INetCache')),
+        os.path.normcase(os.path.join('AppData', 'Local', 'Microsoft', 'Windows', 'WebCache')),
         os.path.normcase(os.path.join('AppData', 'Local', 'pip', 'cache')),
         os.path.normcase(os.path.join('AppData', 'Local', 'npm-cache')),
-        os.path.normcase('C:\\Temp\\windows-user-layer'),
-        os.path.normcase('C:\\Temp\\baseline_epoch.txt')
+        os.path.normcase(os.path.join('ProgramData', 'Microsoft', 'Windows Defender')),
+        os.path.normcase(os.path.join('ProgramData', 'Microsoft', 'Search')),
+        os.path.normcase('C:\\Temp')
     ]
+
+    EXCLUDE_FILENAMES = {
+        'ntuser.dat', 'ntuser.dat.log1', 'ntuser.dat.log2', 'ntuser.ini',
+        'usrclass.dat', 'usrclass.dat.log1', 'usrclass.dat.log2',
+        'thumbs.db', 'desktop.ini'
+    }
 
     cctx = zstd.ZstdCompressor(level=3, threads=-1)
     captured_count = 0
@@ -70,8 +94,9 @@ def main():
                     try:
                         tar.add(reg_file, arcname='Temp/user_settings.reg')
                         captured_count += 1
-                    except Exception:
-                        pass
+                        total_bytes += os.path.getsize(reg_file)
+                    except Exception as e:
+                        print(f"[Persist] Registry pack notice: {e}")
 
                 for root, dirs, files in os.walk('C:\\', topdown=True):
                     # Prune excluded directories immediately at every level
@@ -82,6 +107,9 @@ def main():
                     ]
 
                     for file in files:
+                        if file.lower() in EXCLUDE_FILENAMES:
+                            continue
+
                         filepath = os.path.join(root, file)
                         norm_file = os.path.normcase(filepath)
 
@@ -101,7 +129,8 @@ def main():
 
     print(f"[Persist] State capture completed: {captured_count} assets bundled ({total_bytes / (1024*1024):.2f} MB raw).")
 
-    if not os.path.exists(archive_path) or captured_count == 0:
+    # If only the registry was added or nothing was changed, skip uploading empty changes
+    if not os.path.exists(archive_path) or captured_count <= 0:
         print("[Persist] No modifications detected. Skipping remote upload.")
         return
 
@@ -118,7 +147,12 @@ def main():
     if not os.path.exists(openssl):
         openssl = "openssl"
 
-    cmd = [openssl, "enc", "-aes-256-cbc", "-pbkdf2", "-pass", f"pass:{env_pass}", "-in", archive_path, "-out", enc_blob]
+    cmd = [
+        openssl, "enc", "-aes-256-cbc", "-pbkdf2",
+        "-pass", f"pass:{env_pass}",
+        "-in", archive_path,
+        "-out", enc_blob
+    ]
     res = subprocess.run(cmd, capture_output=True)
     if res.returncode != 0:
         print(f"[Persist] Encryption failed: {res.stderr.decode(errors='ignore')}")

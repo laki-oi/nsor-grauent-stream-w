@@ -14,7 +14,7 @@ def main():
     env_pass = os.environ.get('ENV_PASS')
 
     if not repo or not token or not env_pass:
-        print("[Hydrate] Notice: Missing HF or encryption credentials. Starting with clean baseline.")
+        print("[Hydrate] Notice: Missing HF credentials or encryption key. Initializing baseline layer.")
         return
 
     os.environ['HF_HUB_ENABLE_HF_TRANSFER'] = '1'
@@ -28,14 +28,20 @@ def main():
 
     try:
         print(f"[Hydrate] Fetching state matrix from Hugging Face ({repo})...")
-        hf_hub_download(repo_id=repo, filename='windows-user-layer.bin', repo_type='dataset', token=token, local_dir=temp_dir)
-        print("[Hydrate] State matrix fetched successfully.")
+        hf_hub_download(
+            repo_id=repo,
+            filename='windows-user-layer.bin',
+            repo_type='dataset',
+            token=token,
+            local_dir=temp_dir
+        )
+        print("[Hydrate] Remote state matrix fetched successfully.")
     except Exception as e:
-        print(f"[Hydrate] Notice: No remote checkpoint found (baseline session): {e}")
+        print(f"[Hydrate] Baseline initialization: No remote checkpoint layer found ({e}).")
         return
 
     if not os.path.exists(enc_blob):
-        print("[Hydrate] No state blob available on disk.")
+        print("[Hydrate] Remote layer blob missing on disk.")
         return
 
     print("[Hydrate] Decrypting state layer (AES-256-CBC PBKDF2)...")
@@ -43,7 +49,12 @@ def main():
     if not os.path.exists(openssl):
         openssl = "openssl"
 
-    cmd = [openssl, "enc", "-d", "-aes-256-cbc", "-pbkdf2", "-pass", f"pass:{env_pass}", "-in", enc_blob, "-out", tar_zst]
+    cmd = [
+        openssl, "enc", "-d", "-aes-256-cbc", "-pbkdf2",
+        "-pass", f"pass:{env_pass}",
+        "-in", enc_blob,
+        "-out", tar_zst
+    ]
     res = subprocess.run(cmd, capture_output=True)
     if res.returncode != 0:
         print(f"[Hydrate] Decryption failed: {res.stderr.decode(errors='ignore')}")
@@ -55,7 +66,7 @@ def main():
         pass
 
     if not os.path.exists(tar_zst):
-        print("[Hydrate] Decrypted tarball missing.")
+        print("[Hydrate] Decrypted archive not found.")
         return
 
     print("[Hydrate] Unpacking state archive to native filesystem...")
@@ -66,9 +77,12 @@ def main():
             with tarfile.open(fileobj=decompressor, mode='r|') as tar:
                 for member in tar:
                     try:
-                        tar.extract(member, path='C:/')
+                        if hasattr(tarfile, 'fully_trusted_filter'):
+                            tar.extract(member, path='C:/', filter='fully_trusted')
+                        else:
+                            tar.extract(member, path='C:/')
                         extracted_count += 1
-                    except Exception as e:
+                    except Exception:
                         pass
 
     print(f"[Hydrate] Successfully unpacked {extracted_count} state items to native paths.")
