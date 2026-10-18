@@ -75,8 +75,8 @@ jobs:
             exit 1
           }
 
-          Write-Host "Authenticating node as '$env:NODE_ID'..."
-          & $TailscaleBin up --authkey="$env:MESH_KEY" --hostname="$env:NODE_ID" --reset --accept-routes
+          Write-Host "Authenticating node as '$env:NODE_ID' with mesh SSH transport..."
+          & $TailscaleBin up --authkey="$env:MESH_KEY" --hostname="$env:NODE_ID" --reset --accept-routes --ssh
           Start-Sleep -Seconds 5
 
           $Status = & $TailscaleBin status
@@ -93,26 +93,30 @@ jobs:
         shell: powershell
         run: |
           # 1. Relax local password complexity and length policy
-          $Cfg = "$env:TEMP\sec.cfg"
-          $Db = "$env:TEMP\sec.sdb"
-          secedit /export /cfg $Cfg /quiet
-          $SecContent = Get-Content $Cfg
-          $SecContent = $SecContent -replace "PasswordComplexity\s*=\s*\d+", "PasswordComplexity = 0"
-          $SecContent = $SecContent -replace "MinimumPasswordLength\s*=\s*\d+", "MinimumPasswordLength = 0"
-          $SecContent = $SecContent -replace "PasswordHistorySize\s*=\s*\d+", "PasswordHistorySize = 0"
-          $SecContent | Set-Content $Cfg
-          secedit /configure /db $Db /cfg $Cfg /area SECURITYPOLICY /quiet
-          Remove-Item $Cfg, $Db -Force -ErrorAction SilentlyContinue
+          $cfgPath = "$env:TEMP\secpol.cfg"
+          $dbPath = "$env:TEMP\secpol.sdb"
+          secedit /export /cfg "$cfgPath" /quiet
+          $content = Get-Content -Path "$cfgPath" -Raw
+          $content = $content -replace "PasswordComplexity\s*=\s*\d+", "PasswordComplexity = 0"
+          $content = $content -replace "MinimumPasswordLength\s*=\s*\d+", "MinimumPasswordLength = 0"
+          $content = $content -replace "PasswordHistorySize\s*=\s*\d+", "PasswordHistorySize = 0"
+          Set-Content -Path "$cfgPath" -Value $content -Encoding Unicode
+          secedit /configure /db "$dbPath" /cfg "$cfgPath" /areas SECURITYPOLICY /quiet
+          Remove-Item -Path "$cfgPath", "$dbPath" -Force -ErrorAction SilentlyContinue
 
-          # 2. Set runneradmin credentials
-          & net.exe user runneradmin "$env:ENV_PASS"
-          if ($LASTEXITCODE -ne 0) {
-            $SecurePass = ConvertTo-SecureString $env:ENV_PASS -AsPlainText -Force
-            Set-LocalUser -Name "runneradmin" -Password $SecurePass -ErrorAction SilentlyContinue
-          }
+          net accounts /minpwlen:0 | Out-Null
 
-          # 3. Configure asynchronous terminal transport & low-latency streaming pipeline
+          # 2. Set runneradmin credentials & ensure permissions
+          & net.exe user runneradmin "$env:ENV_PASS" /active:yes /expires:never
+          $SecurePass = ConvertTo-SecureString $env:ENV_PASS -AsPlainText -Force
+          Set-LocalUser -Name "runneradmin" -Password $SecurePass -PasswordNeverExpires $true -ErrorAction SilentlyContinue
+          Add-LocalGroupMember -Group "Remote Desktop Users" -Member "runneradmin" -ErrorAction SilentlyContinue
+          Add-LocalGroupMember -Group "Administrators" -Member "runneradmin" -ErrorAction SilentlyContinue
+
+          # 3. Configure asynchronous terminal transport (RDP & NLA disabled for universal access)
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 0
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "SecurityLayer" -Value 1
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop" -ErrorAction SilentlyContinue
           
           # Visual & TCP Streaming Settings
