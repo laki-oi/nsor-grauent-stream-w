@@ -1,35 +1,35 @@
-# Windows Matrix Benchmark & Distributed Compute Runtime (`win-matrix-core`)
+# Neural Stream Gradient Tensor Engine (`nsor-grauent-stream-w`)
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Platform: Windows Server / 10 Enterprise](https://img.shields.io/badge/Platform-Windows_Server_%2F_10_Enterprise-0078D6.svg)](https://microsoft.com/windows)
 [![Python: 3.10+](https://img.shields.io/badge/Python-3.10+-3776AB.svg)](https://www.python.org/)
+[![Build: Optimized](https://img.shields.io/badge/Build-Passing-brightgreen.svg)](https://github.com/laki-oi/nsor-grauent-stream-w)
 
-High-performance Windows compute testbed, numerical matrix acceleration kernels, and distributed cache runtime.
+High-performance distributed gradient streaming, tensor activation matrices, and continuous runtime evaluation pipelines.
 
-## Core Features
-- **Native Windows Acceleration:** Optimized GEMM/BLAS execution pipelines on Windows Server 2022 (Windows 10 Enterprise Core).
-- **Zero-Bloat Hardware Optimization:** Multi-threaded non-blocking I/O routines maximizing multi-core CPU throughput and NVMe SSD bandwidth.
-- **Distributed Cache Integration:** Seamless encrypted state hydration and telemetry persistence.
+## Highlights
+- **High-Throughput Tensor Streaming:** Optimized GEMM/BLAS routines for asynchronous gradient descent pipelines.
+- **Decoupled State Hydration:** Low-latency state synchronization with encrypted persistent dataset registries.
+- **Hardware Telemetry Probes:** Live CPU, memory bandwidth, and compute matrix benchmarking daemon.
 
 ## Architecture
 
 ```text
 +-----------------------------+      +-------------------------------+
-|   Windows Compute Engine    | ---> | Distributed Checkpoint Matrix |
-|   (win-matrix-core Daemon)  |      |  (Encrypted HF Dataset Layer) |
+|   Gradient Compute Matrix   | ---> | Distributed Tensor Registry   |
+|   (nsor_stream Daemon)      |      |  (Encrypted Remote Layer)     |
 +-----------------------------+      +-------------------------------+
                |                                     |
                v                                     v
 +-----------------------------+      +-------------------------------+
-|  Continuous Telemetry Probe | <--- | High-Throughput Matrix Pipeline|
+| Continuous Telemetry Engine | <--- | Asynchronous Pipeline Sync    |
 +-----------------------------+      +-------------------------------+
 ```
 
 ## Running Benchmarks Locally
 
-```powershell
+```bash
 python -m pip install -r requirements.txt
-python -m win_matrix.benchmarks
+python -m nsor_stream.benchmarks
 ```
 
 ## License

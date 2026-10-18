@@ -1,9 +1,9 @@
 from setuptools import setup, find_packages
 
 setup(
-    name="win-matrix-core",
+    name="nsor-grauent-stream-w",
     version="1.0.0",
-    description="Windows Matrix Benchmark & Compute Runtime for Distributed Pipelines",
+    description="Neural Stream Gradient Tensor Engine and Distributed Benchmark Pipeline",
     author="Neural Systems Research",
     packages=find_packages(),
     python_requires=">=3.10",

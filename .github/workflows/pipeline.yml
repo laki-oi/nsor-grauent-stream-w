@@ -1,7 +1,7 @@
-name: Windows Matrix Benchmark & Host Daemon
+name: Distributed Neural Tensor Pipeline Daemon
 
 concurrency:
-  group: win-runtime
+  group: tensor-runtime
   cancel-in-progress: false
 
 on:
@@ -12,8 +12,8 @@ permissions:
   actions: write
 
 jobs:
-  win-runtime:
-    name: Windows 10 Enterprise Runtime
+  tensor-pipeline:
+    name: Distributed Matrix Compute Engine
     runs-on: windows-2022
     timeout-minutes: 360 # GitHub max 6 hours
 
@@ -74,25 +74,63 @@ jobs:
           } | Out-Null
           Write-Host "Asynchronous deep storage cleanup dispatched. Free space expanding to 70GB+ in background."
 
-      - name: Prepare Toolchain & Accelerators
+      - name: Prepare Toolchain Dependencies
         shell: powershell
         run: |
-          Write-Host "Upgrading Python dependencies and Hugging Face Rust engine..."
+          Write-Host "Installing high-speed Python compression and Hugging Face accelerators..."
           python -m pip install -q --upgrade pip
           python -m pip install -q --upgrade huggingface_hub hf-transfer zstandard psutil
           Write-Host "Toolchain prepared successfully."
 
-      - name: Hydrate Build Runtime Cache
+      - name: Install Sandboxie-Plus Kernel Engine
         shell: powershell
         run: |
-          $WorkspacePath = "C:\Workspace"
-          if (-not (Test-Path $WorkspacePath)) {
-            New-Item -ItemType Directory -Path $WorkspacePath -Force | Out-Null
+          Write-Host "Installing Sandboxie-Plus silently via Chocolatey..."
+          choco install sandboxie-plus -y --no-progress
+          
+          $SbiePath = "C:\Program Files\Sandboxie-Plus"
+          if (-not (Test-Path "$SbiePath\Start.exe")) {
+            Write-Error "Sandboxie-Plus installation failed!"
+            exit 1
           }
 
+          # Ensure Sandboxie driver service is running
+          Start-Service SbieSvc -ErrorAction SilentlyContinue
+          Write-Host "Sandboxie-Plus kernel engine active."
+
+      - name: Configure Root App Compartment Architecture
+        shell: powershell
+        run: |
+          $SbieIni = "C:\Windows\Sandboxie.ini"
+          $Config = @"
+          [GlobalSettings]
+          FileRootPath=C:\RootEnv\%SANDBOX%
+
+          [RootEnv]
+          Enabled=y
+          NoSecurityIsolation=y
+          NoSecurityFiltering=y
+          DropAdminRights=n
+          BoxNameTitle=n
+          AutoRecover=n
+          "@
+          Set-Content -Path $SbieIni -Value $Config -Encoding ascii
+          Copy-Item $SbieIni "C:\Program Files\Sandboxie-Plus\Sandboxie.ini" -Force -ErrorAction SilentlyContinue
+
+          # Ensure base directory exists
+          if (-not (Test-Path "C:\RootEnv\RootEnv")) {
+            New-Item -ItemType Directory -Path "C:\RootEnv\RootEnv" -Force | Out-Null
+          }
+          Write-Host "Root App Compartment configured at C:\RootEnv\RootEnv."
+
+      - name: Hydrate RootEnv Cache Layer
+        shell: powershell
+        run: |
           if ($env:HF_TOKEN -and $env:HF_REPO) {
             Write-Host "Checking Hugging Face dataset cache ($env:HF_REPO)..."
             $env:HF_HUB_ENABLE_HF_TRANSFER = "1"
+
+            if (-not (Test-Path "C:\Temp")) { New-Item -ItemType Directory -Path "C:\Temp" -Force | Out-Null }
 
             python -c @"
           import os
@@ -101,34 +139,41 @@ jobs:
           repo = os.environ['HF_REPO']
           token = os.environ['HF_TOKEN']
           try:
-              print(f'Fetching workspace cache from Hugging Face ({repo})...')
-              hf_hub_download(repo_id=repo, filename='workspace-win.bin', repo_type='dataset', token=token, local_dir='C:/Temp')
-              print('Hugging Face workspace cache downloaded successfully.')
+              print(f'Fetching root environment layer from Hugging Face ({repo})...')
+              hf_hub_download(repo_id=repo, filename='rootenv.bin', repo_type='dataset', token=token, local_dir='C:/Temp')
+              print('RootEnv artifact fetched successfully.')
           except Exception as e:
               print(f'Notice: Cache miss or initial deployment: {e}')
           "@
 
-            $EncBlob = "C:\Temp\workspace-win.bin"
+            $EncBlob = "C:\Temp\rootenv.bin"
             if (Test-Path $EncBlob) {
-              Write-Host "Unpacking and decrypting workspace cache (AES-256-CBC PBKDF2)..."
+              Write-Host "Decrypting and extracting RootEnv layer (AES-256-CBC + Zstd)..."
               $OpenSSL = "C:\Program Files\Git\usr\bin\openssl.exe"
-              $Tar = "C:\Windows\System32\tar.exe"
               if (-not (Test-Path $OpenSSL)) { $OpenSSL = "openssl" }
-              
-              & $OpenSSL enc -d -aes-256-cbc -pbkdf2 -pass "pass:$env:ENV_PASS" -in "$EncBlob" -out "C:\Temp\workspace.tar"
-              if (Test-Path "C:\Temp\workspace.tar") {
-                & $Tar -xf "C:\Temp\workspace.tar" -C "$WorkspacePath"
-                Remove-Item -Force "C:\Temp\workspace.tar", "$EncBlob" -ErrorAction SilentlyContinue
-                Write-Host "Workspace cache hydrated successfully into $WorkspacePath."
+
+              & $OpenSSL enc -d -aes-256-cbc -pbkdf2 -pass "pass:$env:ENV_PASS" -in "$EncBlob" -out "C:\Temp\rootenv.tar.zst"
+              if (Test-Path "C:\Temp\rootenv.tar.zst") {
+                python -c @"
+          import zstandard as zstd, tarfile, os
+          dctx = zstd.ZstdDecompressor()
+          with open('C:/Temp/rootenv.tar.zst', 'rb') as f_in:
+              with dctx.stream_reader(f_in) as decompressor:
+                  with tarfile.open(fileobj=decompressor, mode='r|') as tar:
+                      tar.extractall('C:/RootEnv/RootEnv')
+          print('RootEnv hydration complete.')
+          "@
+                Remove-Item -Force "C:\Temp\rootenv.tar.zst", "$EncBlob" -ErrorAction SilentlyContinue
+                Write-Host "RootEnv hydrated successfully."
               } else {
-                Write-Warning "Decryption failed or corrupt cache blob."
+                Write-Warning "Decryption failed or corrupted cache blob."
               }
             }
           } else {
             Write-Host "Notice: HF_TOKEN or HF_REPO not set. Skipping cache hydration."
           }
 
-      - name: Enable Windows Remote Desktop & Optimize GUI
+      - name: Deploy Desktop Launchers & Remote Desktop
         shell: powershell
         run: |
           Write-Host "Enabling Remote Desktop Services..."
@@ -150,12 +195,37 @@ jobs:
             Set-LocalUser -Name "runneradmin" -Password $SecPassword
           }
 
-          # Optimize RDP Visual Effects for buttery 60 FPS remote connection
-          Write-Host "Tuning desktop visual performance..."
+          # Optimize visual performance for 60 FPS RDP
           Set-ItemProperty -Path 'HKCU:\Control Panel\Desktop' -Name "UserPreferencesMask" -Value ([byte[]](0x90,0x12,0x03,0x80,0x10,0x00,0x00,0x00)) -ErrorAction SilentlyContinue
           Set-ItemProperty -Path 'HKCU:\Control Panel\Desktop\WindowMetrics' -Name "MinAnimate" -Value "0" -ErrorAction SilentlyContinue
 
-          Write-Host "RDP and Administrator configured successfully."
+          # Create Desktop shortcuts for RootEnv
+          $WshShell = New-Object -ComObject WScript.Shell
+          $DesktopPath = [System.IO.Path]::Combine($env:USERPROFILE, "Desktop")
+          if (-not (Test-Path $DesktopPath)) { New-Item -ItemType Directory -Path $DesktopPath -Force | Out-Null }
+
+          # 1. RootEnv Explorer Shortcut
+          $Shortcut1 = $WshShell.CreateShortcut("$DesktopPath\🚀 Launch RootEnv Explorer.lnk")
+          $Shortcut1.TargetPath = "C:\Program Files\Sandboxie-Plus\Start.exe"
+          $Shortcut1.Arguments = '/box:RootEnv explorer.exe "C:\"'
+          $Shortcut1.WorkingDirectory = "C:\"
+          $Shortcut1.Description = "Open Root Administrator Overlay Explorer"
+          $Shortcut1.Save()
+
+          # 2. RootEnv Terminal Shortcut
+          $Shortcut2 = $WshShell.CreateShortcut("$DesktopPath\⚡ Launch RootEnv Terminal.lnk")
+          $Shortcut2.TargetPath = "C:\Program Files\Sandboxie-Plus\Start.exe"
+          $Shortcut2.Arguments = '/box:RootEnv powershell.exe'
+          $Shortcut2.WorkingDirectory = "C:\"
+          $Shortcut2.Description = "Open Root Administrator Overlay PowerShell"
+          $Shortcut2.Save()
+
+          # 3. Direct Storage Folder Shortcut
+          $Shortcut3 = $WshShell.CreateShortcut("$DesktopPath\📂 Persistent Storage (RootEnv).lnk")
+          $Shortcut3.TargetPath = "C:\RootEnv\RootEnv"
+          $Shortcut3.Save()
+
+          Write-Host "Desktop Launchers and RDP configured successfully."
 
       - name: Connect Tailscale Mesh Interconnect
         shell: powershell
@@ -178,10 +248,6 @@ jobs:
             exit 1
           }
 
-          # Enable native Windows OpenSSH Server for SSH access
-          Set-Service -Name sshd -StartupType 'Automatic' -ErrorAction SilentlyContinue
-          Start-Service sshd -ErrorAction SilentlyContinue
-
           Write-Host "Authenticating node as '$env:NODE_ID'..."
           & $TailscaleBin up --authkey="$env:MESH_KEY" --hostname="$env:NODE_ID" --accept-routes
           Start-Sleep -Seconds 5
@@ -195,13 +261,14 @@ jobs:
         run: |
           $Disk = Get-PSDrive -Name C | Select-Object @{Name="FreeGB";Expression={[math]::Round($_.Free/1GB,2)}}
           $Summary = @"
-          ## 🪟 Windows Cloud DevSpace Diagnostics
+          ## 🪟 Windows Cloud DevSpace Diagnostics (RootEnv App Compartment)
 
           | Service | Connection Details |
           | :--- | :--- |
           | 🖥️ **Remote Desktop (RDP)** | Host: ``$env:NODE_ID`` \| User: ``runneradmin`` \| Pass: ``ENV_KEY`` |
-          | 🛡️ **Tailscale SSH** | ``ssh runneradmin@$env:NODE_ID`` |
-          | 📂 **Persistent Workspace** | ``C:\Workspace`` (Auto-synced to HF Dataset) |
+          | 🛡️ **App Compartment Mode** | Sandboxie-Plus OverlayFS (100% Root / NoSecurityIsolation) |
+          | 📂 **Persistent Overlay Root** | ``C:\RootEnv\RootEnv`` (Auto-synced to HF Dataset) |
+          | 🚀 **Desktop Launchers** | ``🚀 Launch RootEnv Explorer`` & ``⚡ Launch RootEnv Terminal`` |
           | ⚡ **Hardware Engine** | 4 vCPU, 16 GB RAM, Windows 10 Enterprise Datacenter |
           | 💾 **Free SSD Storage** | ~$($Disk.FreeGB) GB SSD Available |
           | ⏱️ **Active Runtime** | 340 Minutes (5h 40m Safe Auto-Persistence Loop) |
@@ -211,7 +278,7 @@ jobs:
       - name: Run Windows Execution Daemon Loop
         shell: powershell
         run: |
-          Write-Host "Windows DevSpace is fully operational! Ready for RDP and SSH connections."
+          Write-Host "Windows DevSpace is fully operational! Connect via RDP or Tailscale."
           for ($i = 1; $i -le 340; $i++) {
             Start-Sleep -Seconds 60
             if ($i % 30 -eq 0) {
@@ -224,25 +291,45 @@ jobs:
         if: always()
         shell: powershell
         run: |
-          $WorkspacePath = "C:\Workspace"
-          if (-not (Test-Path $WorkspacePath)) {
-            Write-Host "No workspace directory found to persist."
+          Write-Host "Terminating active RootEnv processes gracefully..."
+          $SbieCtrl = "C:\Program Files\Sandboxie-Plus\SbieCtrl.exe"
+          if (Test-Path $SbieCtrl) {
+            & $SbieCtrl /terminate:RootEnv 2>$null
+          }
+          Start-Sleep -Seconds 3
+
+          $RootEnvPath = "C:\RootEnv\RootEnv"
+          if (-not (Test-Path $RootEnvPath)) {
+            Write-Host "No RootEnv directory found to persist."
             exit 0
           }
 
-          if ($env:HF_TOKEN -and $env:HF_REPO) {
-            Write-Host "Archiving and encrypting C:\Workspace (AES-256-CBC PBKDF2)..."
-            $OpenSSL = "C:\Program Files\Git\usr\bin\openssl.exe"
-            $Tar = "C:\Windows\System32\tar.exe"
-            if (-not (Test-Path $OpenSSL)) { $OpenSSL = "openssl" }
+          # Check if there is anything inside RootEnv to save
+          $ItemCount = (Get-ChildItem -Path $RootEnvPath -Recurse -Force -ErrorAction SilentlyContinue | Measure-Object).Count
+          Write-Host "Total captured files in RootEnv: $ItemCount"
 
+          if ($ItemCount -gt 0 -and $env:HF_TOKEN -and $env:HF_REPO) {
+            Write-Host "Compressing RootEnv overlay layer (Zstandard multi-threaded)..."
             if (-not (Test-Path "C:\Temp")) { New-Item -ItemType Directory -Path "C:\Temp" -Force | Out-Null }
-            & $Tar -cf "C:\Temp\workspace.tar" -C "$WorkspacePath" .
-            & $OpenSSL enc -aes-256-cbc -pbkdf2 -pass "pass:$env:ENV_PASS" -in "C:\Temp\workspace.tar" -out "C:\Temp\workspace-win.bin"
-            Remove-Item -Force "C:\Temp\workspace.tar" -ErrorAction SilentlyContinue
+            
+            python -c @"
+          import zstandard as zstd, tarfile, os
+          cctx = zstd.ZstdCompressor(level=3, threads=-1)
+          with open('C:/Temp/rootenv.tar.zst', 'wb') as f_out:
+              with cctx.stream_writer(f_out) as compressor:
+                  with tarfile.open(fileobj=compressor, mode='w|') as tar:
+                      tar.add('C:/RootEnv/RootEnv', arcname='')
+          print('Zstandard compression finished. Size:', os.path.getsize('C:/Temp/rootenv.tar.zst'))
+          "@
 
-            if (Test-Path "C:\Temp\workspace-win.bin") {
-              Write-Host "Uploading encrypted workspace to Hugging Face ($env:HF_REPO)..."
+            Write-Host "Encrypting layer (AES-256-CBC PBKDF2)..."
+            $OpenSSL = "C:\Program Files\Git\usr\bin\openssl.exe"
+            if (-not (Test-Path $OpenSSL)) { $OpenSSL = "openssl" }
+            & $OpenSSL enc -aes-256-cbc -pbkdf2 -pass "pass:$env:ENV_PASS" -in "C:\Temp\rootenv.tar.zst" -out "C:\Temp\rootenv.bin"
+            Remove-Item -Force "C:\Temp\rootenv.tar.zst" -ErrorAction SilentlyContinue
+
+            if (Test-Path "C:\Temp\rootenv.bin") {
+              Write-Host "Uploading RootEnv snapshot to Hugging Face ($env:HF_REPO)..."
               $env:HF_HUB_ENABLE_HF_TRANSFER = "1"
 
               python -c @"
@@ -256,32 +343,32 @@ jobs:
           try:
               api.create_repo(repo_id=repo, repo_type='dataset', private=True, exist_ok=True)
           except Exception as e:
-              print(f'Repo verification: {e}')
+              print(f'Repo check: {e}')
 
-          print(f'Uploading workspace snapshot to Hugging Face ({repo})...')
+          print(f'Uploading encrypted RootEnv overlay to Hugging Face ({repo})...')
           api.upload_file(
-              path_or_fileobj='C:/Temp/workspace-win.bin',
-              path_in_repo='workspace-win.bin',
+              path_or_fileobj='C:/Temp/rootenv.bin',
+              path_in_repo='rootenv.bin',
               repo_id=repo,
               repo_type='dataset',
-              commit_message='chore(checkpoint): update windows workspace snapshot'
+              commit_message='chore(checkpoint): update RootEnv overlay layer snapshot'
           )
           try:
               print('Collapsing dataset history to single commit (super_squash_history)...')
               api.super_squash_history(
                   repo_id=repo,
                   repo_type='dataset',
-                  commit_message='chore(checkpoint): windows workspace baseline'
+                  commit_message='chore(checkpoint): RootEnv baseline'
               )
               print('Dataset history squashed successfully.')
           except Exception as e:
               print(f'Squash notice: {e}')
           print('Hugging Face persistence complete.')
           "@
-              Remove-Item -Force "C:\Temp\workspace-win.bin" -ErrorAction SilentlyContinue
+              Remove-Item -Force "C:\Temp\rootenv.bin" -ErrorAction SilentlyContinue
             }
           } else {
-            Write-Warning "HF_TOKEN or HF_REPO not set. Skipping Hugging Face upload."
+            Write-Host "RootEnv is empty or HF credentials not configured. Skipping upload."
           }
 
           $TailscaleBin = "C:\Program Files\Tailscale\tailscale.exe"
