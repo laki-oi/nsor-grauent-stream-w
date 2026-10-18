@@ -281,10 +281,8 @@ jobs:
           Write-Host "Windows DevSpace is fully operational! Connect via RDP or Tailscale."
           for ($i = 1; $i -le 340; $i++) {
             Start-Sleep -Seconds 60
-            if ($i % 30 -eq 0) {
-              $Mem = Get-CimInstance Win32_OperatingSystem | Select-Object @{Name="FreeGB";Expression={[math]::Round($_.FreePhysicalMemory/1MB,2)}}
-              Write-Host "DevSpace heartbeat: $i / 340 minutes completed (Free RAM: $($Mem.FreeGB) GB)..."
-            }
+            $Mem = Get-CimInstance Win32_OperatingSystem | Select-Object @{Name="FreeGB";Expression={[math]::Round($_.FreePhysicalMemory/1MB,2)}}
+            Write-Host "DevSpace heartbeat: $i / 340 minutes active (Free RAM: $($Mem.FreeGB) GB)..."
           }
 
       - name: Persist Runtime Cache Layer
