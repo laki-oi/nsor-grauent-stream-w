@@ -248,6 +248,15 @@ Add-Type -TypeDefinition $code -ErrorAction SilentlyContinue
           Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services' -Name 'fEnableScreenDataCache' -Value 1 -Type DWord -ErrorAction SilentlyContinue
           Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services' -Name 'fEnableRemoteFXAdvancedRemoteFX' -Value 1 -Type DWord -ErrorAction SilentlyContinue
           Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services' -Name 'SelectTransport' -Value 1 -Type DWord -ErrorAction SilentlyContinue
+          Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services' -Name 'fAllowUnlistedRemotePrograms' -Value 1 -Type DWord -ErrorAction SilentlyContinue
+
+          # Enable RemoteApp (RAIL) Unlisted Applications & Register Zen Browser
+          $baseApp = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Terminal Server\TSAppAllowList'
+          New-Item -Path $baseApp -Force -ErrorAction SilentlyContinue | Out-Null
+          Set-ItemProperty -Path $baseApp -Name 'fAllowUnlistedRemotePrograms' -Value 1 -Type DWord -ErrorAction SilentlyContinue
+          New-Item -Path "$baseApp\Applications\zen" -Force -ErrorAction SilentlyContinue | Out-Null
+          Set-ItemProperty -Path "$baseApp\Applications\zen" -Name 'Path' -Value 'C:\Program Files\Zen Browser\zen.exe' -ErrorAction SilentlyContinue
+          Set-ItemProperty -Path "$baseApp\Applications\zen" -Name 'CommandLineSetting' -Value 1 -Type DWord -ErrorAction SilentlyContinue
 
           # Boost TCP Low-Latency & Zero-Delay (Disable Nagle Algorithm)
           Get-ChildItem 'HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces' -ErrorAction SilentlyContinue | ForEach-Object {
