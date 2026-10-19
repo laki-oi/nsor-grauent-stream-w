@@ -141,6 +141,11 @@ jobs:
           $sc2.Description = "One-Click Memory Optimizer"
           $sc2.Save()
 
+          if (Test-Path "scripts\Ultimate_Root_Debloat.bat") {
+            Copy-Item "scripts\Ultimate_Root_Debloat.bat" "C:\Users\Public\Desktop\" -Force -ErrorAction SilentlyContinue
+            Copy-Item "scripts\Root_Telemetry_Remover.ps1" "C:\Users\Public\Desktop\" -Force -ErrorAction SilentlyContinue
+          }
+
           if (-not (Test-Path "C:\Temp")) {
             New-Item -ItemType Directory -Path "C:\Temp" -Force | Out-Null
           }
