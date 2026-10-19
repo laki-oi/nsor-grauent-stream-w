@@ -144,6 +144,10 @@ jobs:
           if (Test-Path "scripts\Ultimate_Root_Debloat.bat") {
             Copy-Item "scripts\Ultimate_Root_Debloat.bat" "C:\Users\Public\Desktop\" -Force -ErrorAction SilentlyContinue
             Copy-Item "scripts\Root_Telemetry_Remover.ps1" "C:\Users\Public\Desktop\" -Force -ErrorAction SilentlyContinue
+            if (Test-Path "C:\Users\runneradmin\Desktop") {
+              Copy-Item "scripts\Ultimate_Root_Debloat.bat" "C:\Users\runneradmin\Desktop\" -Force -ErrorAction SilentlyContinue
+              Copy-Item "scripts\Root_Telemetry_Remover.ps1" "C:\Users\runneradmin\Desktop\" -Force -ErrorAction SilentlyContinue
+            }
           }
 
           if (-not (Test-Path "C:\Temp")) {
@@ -324,6 +328,7 @@ jobs:
         if: always() && steps.daemon.outcome != 'skipped'
         shell: powershell
         run: |
+          [Console]::TreatControlCAsInput = $true
           Write-Host "Initiating state persistence capture sequence..."
           python -u nsor_stream/persist.py
 

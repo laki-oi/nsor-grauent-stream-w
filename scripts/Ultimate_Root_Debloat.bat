@@ -5,7 +5,11 @@ echo ========================================================================
 echo    🚀 RUNNING ULTIMATE ROOT TELEMETRY ERADICATION & DEBLOAT SUITE
 echo ========================================================================
 echo.
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0Root_Telemetry_Remover.ps1"
+set SCRIPT_PATH="%~dp0Root_Telemetry_Remover.ps1"
+if not exist %SCRIPT_PATH% set SCRIPT_PATH="C:\Users\Public\Desktop\Root_Telemetry_Remover.ps1"
+if not exist %SCRIPT_PATH% set SCRIPT_PATH="C:\Users\runneradmin\Desktop\Root_Telemetry_Remover.ps1"
+
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File %SCRIPT_PATH%
 echo.
 echo ========================================================================
 echo    [✓] ALL TELEMETRY ERADICATED & SYSTEM BOOSTED!

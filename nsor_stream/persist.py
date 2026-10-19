@@ -4,6 +4,26 @@ import time
 import subprocess
 import shutil
 import tarfile
+import signal
+
+# Ensure immunity against Ctrl+C / SIGINT during cancellation
+if sys.platform == 'win32':
+    try:
+        import ctypes
+        # SetConsoleCtrlHandler(NULL, TRUE) disables CTRL_C_EVENT and CTRL_BREAK_EVENT
+        ctypes.windll.kernel32.SetConsoleCtrlHandler(None, True)
+    except Exception:
+        pass
+
+try:
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+except Exception:
+    pass
+
+try:
+    signal.signal(signal.SIGTERM, signal.SIG_IGN)
+except Exception:
+    pass
 
 try:
     import zstandard as zstd
@@ -66,8 +86,10 @@ def main():
         'config.msi', 'perflogs', 'hostedtoolcache', 'actions',
         'actions-runner', 'image',
         # Giant pre-installed toolkits that bloat NTFS traversal
-        'microsoft visual studio', 'windows kits', 'android', 'dotnet',
-        'llvm', 'java', 'selenium', 'package cache'
+        'microsoft visual studio', 'microsoft visual studio 14.0',
+        'windows kits', 'android', 'dotnet', 'llvm', 'java', 'selenium',
+        'package cache', 'microsoft sql server', 'msys64', 'miniconda',
+        'strawberry', 'julia', 'vcpkg', 'ghcup', 'rtools45'
     }
 
     EXCLUDE_SUBSTRINGS = [
@@ -103,12 +125,25 @@ def main():
                         print(f"[Persist] Registry pack notice: {e}")
 
                 for root, dirs, files in os.walk('C:\\', topdown=True):
-                    # Prune excluded directories immediately at every level
-                    dirs[:] = [
-                        d for d in dirs
-                        if d.lower() not in EXCLUDE_DIRS
-                        and not any(sub in os.path.normcase(os.path.join(root, d)) for sub in EXCLUDE_SUBSTRINGS)
-                    ]
+                    pruned_dirs = []
+                    for d in dirs:
+                        d_lower = d.lower()
+                        if d_lower in EXCLUDE_DIRS:
+                            continue
+                        dir_path = os.path.join(root, d)
+                        if any(sub in os.path.normcase(dir_path) for sub in EXCLUDE_SUBSTRINGS):
+                            continue
+                        # If inside Program Files or Program Files (x86), prune pre-installed static dirs
+                        if root.lower() in ('c:\\program files', 'c:\\program files (x86)'):
+                            try:
+                                dir_stat = os.stat(dir_path)
+                                # If this folder was created before our session and not modified, skip entering it!
+                                if dir_stat.st_ctime < baseline_ts and dir_stat.st_mtime < baseline_ts:
+                                    continue
+                            except OSError:
+                                continue
+                        pruned_dirs.append(d)
+                    dirs[:] = pruned_dirs
 
                     for file in files:
                         if file.lower() in EXCLUDE_FILENAMES:
@@ -211,4 +246,7 @@ def main():
     print("[Persist] State persistence routine completed successfully.")
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("[Persist] Cancellation interrupt absorbed. Completing cleanly.")
