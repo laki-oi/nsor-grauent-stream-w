@@ -47,7 +47,7 @@ foreach ($pat in $ProcessPatterns) {
 # 3. IFEO ROOT BLOCKADE (Prevents Windows from EVER relaunching telemetry & search binaries)
 Write-Step "Installing IFEO execution blockades for persistent telemetry binaries..."
 $IfeoPath = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options"
-$BlockBinaries = @("CompatTelRunner.exe", "DeviceCensus.exe", "wermgr.exe", "smartscreen.exe", "SearchHost.exe")
+$BlockBinaries = @("CompatTelRunner.exe", "DeviceCensus.exe", "wermgr.exe")
 
 foreach ($bin in $BlockBinaries) {
     $targetKey = "$IfeoPath\$bin"
@@ -55,6 +55,8 @@ foreach ($bin in $BlockBinaries) {
     Set-ItemProperty -Path $targetKey -Name "Debugger" -Value "systray.exe" -ErrorAction SilentlyContinue
     Write-Done "Root execution blocked: $bin"
 }
+Remove-Item "$IfeoPath\smartscreen.exe" -Force -ErrorAction SilentlyContinue
+Remove-Item "$IfeoPath\SearchHost.exe" -Force -ErrorAction SilentlyContinue
 
 # 4. ROOT DISABLE WINDOWS OS TELEMETRY AND DIAGNOSTIC SERVICES
 # Network, RPC, Audio, and RDP services are 100% PROTECTED.
@@ -128,7 +130,9 @@ $RegEntries = @(
     @{ Path = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search"; Name = "BingSearchEnabled"; Value = 0; Type = "DWord" },
     @{ Path = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search"; Name = "CortanaConsent"; Value = 0; Type = "DWord" },
     @{ Path = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\CloudContent"; Name = "DisableWindowsConsumerFeatures"; Value = 1; Type = "DWord" },
-    @{ Path = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System"; Name = "EnableSmartScreen"; Value = 0; Type = "DWord" }
+    @{ Path = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System"; Name = "EnableSmartScreen"; Value = 0; Type = "DWord" },
+    @{ Path = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer"; Name = "SmartScreenEnabled"; Value = "Off"; Type = "String" },
+    @{ Path = "HKCU:\Software\Microsoft\Windows\CurrentVersion\AppHost"; Name = "EnableWebContentEvaluation"; Value = 0; Type = "DWord" }
 )
 
 foreach ($r in $RegEntries) {
