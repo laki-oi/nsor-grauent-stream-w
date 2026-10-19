@@ -7,7 +7,7 @@ on:
 
 concurrency:
   group: nsor-stream-windows
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   matrix-stream-engine:
@@ -336,9 +336,13 @@ jobs:
           Write-Host "Initiating state persistence capture sequence..."
           python -u nsor_stream/persist.py
 
-          # Clean Mesh Logout
+      - name: Teardown Secure Mesh Gateway
+        if: always()
+        shell: powershell
+        run: |
           $TailscaleBin = "C:\Program Files\Tailscale\tailscale.exe"
           if (Test-Path $TailscaleBin) {
+            Write-Host "Releasing Tailscale node registration cleanly..."
             & $TailscaleBin logout | Out-Null
           }
           Write-Host "Shutdown sequence completed cleanly."
