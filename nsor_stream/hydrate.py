@@ -83,11 +83,37 @@ def main():
             with tarfile.open(fileobj=decompressor, mode='r|') as tar:
                 for member in tar:
                     try:
-                        if hasattr(tarfile, 'fully_trusted_filter'):
-                            tar.extract(member, path='C:/', filter='fully_trusted')
+                        clean_name = member.name.replace('\\', '/')
+                        if clean_name.startswith('DRIVE_D/'):
+                            target_base = 'D:/'
+                            member.name = clean_name[len('DRIVE_D/'):]
+                        elif clean_name.startswith('DRIVE_C/'):
+                            target_base = 'C:/'
+                            member.name = clean_name[len('DRIVE_C/'):]
                         else:
-                            tar.extract(member, path='C:/')
-                        extracted_count += 1
+                            # Backward compatibility for legacy single-drive archives
+                            target_base = 'C:/'
+
+                        if not os.path.exists(target_base):
+                            try:
+                                os.makedirs(target_base, exist_ok=True)
+                            except OSError:
+                                pass
+
+                        try:
+                            if hasattr(tarfile, 'fully_trusted_filter'):
+                                tar.extract(member, path=target_base, filter='fully_trusted')
+                            else:
+                                tar.extract(member, path=target_base)
+                            extracted_count += 1
+                        except Exception:
+                            # If extraction to D: fails (e.g. partition unmounted), fallback to C:
+                            if target_base.startswith('D'):
+                                try:
+                                    tar.extract(member, path='C:/')
+                                    extracted_count += 1
+                                except Exception:
+                                    pass
                     except Exception:
                         pass
 

@@ -77,10 +77,10 @@ def main():
     subprocess.run(["reg.exe", "export", "HKCU", reg_file, "/y"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     # 2. Scanning filesystem for additions and modifications
-    print("[Persist] Scanning C: drive for modified and newly added files...")
+    print("[Persist] Scanning target partitions (C: and D:) for modified and newly added files...")
 
     # Fast directory exclusions (prunes giant static trees in nanoseconds)
-    EXCLUDE_DIRS = {
+    EXCLUDE_DIRS_C = {
         'windows', '$recycle.bin', 'system volume information',
         'recovery', 'boot', 'documents and settings', 'msocache',
         'config.msi', 'perflogs', 'hostedtoolcache', 'actions',
@@ -90,6 +90,12 @@ def main():
         'windows kits', 'android', 'dotnet', 'llvm', 'java', 'selenium',
         'package cache', 'microsoft sql server', 'msys64', 'miniconda',
         'strawberry', 'julia', 'vcpkg', 'ghcup', 'rtools45'
+    }
+
+    # Specifically for D:\ drive (Temp/Scratch Disk):
+    EXCLUDE_DIRS_D = {
+        '$recycle.bin', 'system volume information', 'recovery',
+        'perflogs', 'a', '_temp', '_actions'
     }
 
     EXCLUDE_SUBSTRINGS = [
@@ -106,8 +112,15 @@ def main():
     EXCLUDE_FILENAMES = {
         'ntuser.dat', 'ntuser.dat.log1', 'ntuser.dat.log2', 'ntuser.ini',
         'usrclass.dat', 'usrclass.dat.log1', 'usrclass.dat.log2',
-        'thumbs.db', 'desktop.ini'
+        'thumbs.db', 'desktop.ini',
+        'pagefile.sys', 'swapfile.sys', 'dumpfile.sys', 'hiberfil.sys'
     }
+
+    scan_targets = [
+        ('C:\\', 'DRIVE_C', EXCLUDE_DIRS_C)
+    ]
+    if os.path.exists('D:\\'):
+        scan_targets.append(('D:\\', 'DRIVE_D', EXCLUDE_DIRS_D))
 
     cctx = zstd.ZstdCompressor(level=3, threads=-1)
     captured_count = 0
@@ -118,53 +131,58 @@ def main():
             with tarfile.open(fileobj=compressor, mode='w|') as tar:
                 if os.path.exists(reg_file):
                     try:
-                        tar.add(reg_file, arcname='Temp/user_settings.reg')
+                        tar.add(reg_file, arcname='DRIVE_C/Temp/user_settings.reg')
                         captured_count += 1
                         total_bytes += os.path.getsize(reg_file)
                     except Exception as e:
                         print(f"[Persist] Registry pack notice: {e}")
 
-                for root, dirs, files in os.walk('C:\\', topdown=True):
-                    pruned_dirs = []
-                    for d in dirs:
-                        d_lower = d.lower()
-                        if d_lower in EXCLUDE_DIRS:
-                            continue
-                        dir_path = os.path.join(root, d)
-                        if any(sub in os.path.normcase(dir_path) for sub in EXCLUDE_SUBSTRINGS):
-                            continue
-                        # If inside Program Files or Program Files (x86), prune pre-installed static dirs
-                        if root.lower() in ('c:\\program files', 'c:\\program files (x86)'):
-                            try:
-                                dir_stat = os.stat(dir_path)
-                                # If this folder was created before our session and not modified, skip entering it!
-                                if dir_stat.st_ctime < baseline_ts and dir_stat.st_mtime < baseline_ts:
-                                    continue
-                            except OSError:
+                for drive_root, drive_prefix, exclude_dirs in scan_targets:
+                    if not os.path.exists(drive_root):
+                        continue
+                    print(f"[Persist] Scanning target partition {drive_root}...")
+                    for root, dirs, files in os.walk(drive_root, topdown=True):
+                        pruned_dirs = []
+                        for d in dirs:
+                            d_lower = d.lower()
+                            if d_lower in exclude_dirs:
                                 continue
-                        pruned_dirs.append(d)
-                    dirs[:] = pruned_dirs
+                            dir_path = os.path.join(root, d)
+                            if any(sub in os.path.normcase(dir_path) for sub in EXCLUDE_SUBSTRINGS):
+                                continue
+                            # If inside Program Files or Program Files (x86), prune pre-installed static dirs
+                            if root.lower() in ('c:\\program files', 'c:\\program files (x86)'):
+                                try:
+                                    dir_stat = os.stat(dir_path)
+                                    # If this folder was created before our session and not modified, skip entering it!
+                                    if dir_stat.st_ctime < baseline_ts and dir_stat.st_mtime < baseline_ts:
+                                        continue
+                                except OSError:
+                                    continue
+                            pruned_dirs.append(d)
+                        dirs[:] = pruned_dirs
 
-                    for file in files:
-                        if file.lower() in EXCLUDE_FILENAMES:
-                            continue
+                        for file in files:
+                            if file.lower() in EXCLUDE_FILENAMES:
+                                continue
 
-                        filepath = os.path.join(root, file)
-                        norm_file = os.path.normcase(filepath)
+                            filepath = os.path.join(root, file)
+                            norm_file = os.path.normcase(filepath)
 
-                        if any(sub in norm_file for sub in EXCLUDE_SUBSTRINGS):
-                            continue
+                            if any(sub in norm_file for sub in EXCLUDE_SUBSTRINGS):
+                                continue
 
-                        try:
-                            stat = os.stat(filepath)
-                            # Only capture files created or written to during this active session
-                            if stat.st_mtime >= baseline_ts or stat.st_ctime >= baseline_ts:
-                                rel_path = os.path.relpath(filepath, 'C:\\')
-                                tar.add(filepath, arcname=rel_path)
-                                captured_count += 1
-                                total_bytes += stat.st_size
-                        except (PermissionError, OSError, FileNotFoundError):
-                            continue
+                            try:
+                                stat = os.stat(filepath)
+                                # Only capture files created or written to during this active session
+                                if stat.st_mtime >= baseline_ts or stat.st_ctime >= baseline_ts:
+                                    rel_path = os.path.relpath(filepath, drive_root)
+                                    arc_path = f"{drive_prefix}/{rel_path}".replace('\\', '/')
+                                    tar.add(filepath, arcname=arc_path)
+                                    captured_count += 1
+                                    total_bytes += stat.st_size
+                            except (PermissionError, OSError, FileNotFoundError):
+                                continue
 
     print(f"[Persist] State capture completed: {captured_count} assets bundled ({total_bytes / (1024*1024):.2f} MB raw).")
 
