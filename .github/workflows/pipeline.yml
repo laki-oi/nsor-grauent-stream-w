@@ -332,7 +332,7 @@ jobs:
         if: always() && steps.daemon.outcome != 'skipped'
         shell: powershell
         run: |
-          [Console]::TreatControlCAsInput = $true
+          try { [Console]::TreatControlCAsInput = $true } catch {}
           Write-Host "Initiating state persistence capture sequence..."
           python -u nsor_stream/persist.py
 
