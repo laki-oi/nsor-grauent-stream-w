@@ -204,6 +204,7 @@ $PurgeDirs = @(
     "C:\Program Files\CMake",
     "C:\Program Files\MySQL",
     "C:\Program Files (x86)\Windows Kits",
+    "C:\Program Files (x86)\Microsoft SDKs",
     "C:\Program Files (x86)\WiX Toolset v3.14",
     "C:\Program Files (x86)\sbt",
     "C:\Program Files (x86)\pipx",
@@ -220,8 +221,9 @@ $PurgeDirs = @(
     "C:\hostedtoolcache\windows\PyPy"
 )
 
-# Generate a sequential low-priority script so disk IOPS does not saturate or drop network
-$CleanupScript = "$env:TEMP\sequential_purge.bat"
+# Generate a sequential script in C:\Temp so disk cleanup completes cleanly
+if (-not (Test-Path "C:\Temp")) { New-Item -ItemType Directory -Path "C:\Temp" -Force -ErrorAction SilentlyContinue | Out-Null }
+$CleanupScript = "C:\Temp\sequential_purge.bat"
 $CleanupContent = "@echo off`r`n"
 foreach ($target in $PurgeDirs) {
     $CleanupContent += "if exist `"$target`" rmdir /s /q `"$target`" 2>nul`r`n"
@@ -229,8 +231,8 @@ foreach ($target in $PurgeDirs) {
 $CleanupContent += "del /f /s /q `"$env:TEMP\*`" 2>nul`r`n"
 Set-Content -Path $CleanupScript -Value $CleanupContent -Encoding ascii
 
-Start-Process -FilePath "cmd.exe" -ArgumentList "/c start /low cmd.exe /c `"$CleanupScript`"" -WindowStyle Hidden
-Write-Done "Sequential low-priority purge started (Zero network or UI freeze)."
+Start-Process -FilePath "cmd.exe" -ArgumentList "/c `"$CleanupScript`"" -WindowStyle Hidden
+Write-Done "Sequential bloatware purge executed (Zero network or UI freeze)."
 
 # 10. FINAL HEALTH AND STATS SUMMARY
 Start-Sleep -Seconds 2
